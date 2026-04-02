@@ -33,6 +33,7 @@ local GameOverEvent    = makeRemote("GameOver")
 local WaterLevel       = makeRemote("WaterLevel")
 local LobbyTimer       = makeRemote("LobbyTimer")
 local DebugEliminate   = makeRemote("DebugEliminate")
+local BroadcastColor   = makeRemote("BroadcastColor")
 
 --------------------------------------------------------------
 -- ARENA REFERENCES (built in Studio — see Phase 4)
@@ -309,6 +310,13 @@ DebugEliminate.OnServerEvent:Connect(function(player: Player)
 			hum.JumpPower = 50
 		end
 	end
+end)
+
+--------------------------------------------------------------
+-- LIVE COLOR BROADCAST (guess phase)
+--------------------------------------------------------------
+BroadcastColor.OnServerEvent:Connect(function(player: Player, h: number, s: number, v: number)
+	BroadcastColor:FireAllClients(player.Name, h, s, v)
 end)
 
 runGame()
