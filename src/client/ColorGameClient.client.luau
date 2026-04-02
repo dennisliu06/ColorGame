@@ -1093,6 +1093,20 @@ end)
 -- EVENT: Round Scores (show score + time on each card)
 --------------------------------------------------------------
 RoundScoresEvt.OnClientEvent:Connect(function(allScores: { { name: string, score: number, time: number } })
+	-- Rank players by submission time (ascending) to assign medal colors
+	local sorted = table.clone(allScores)
+	table.sort(sorted, function(a, b) return a.time < b.time end)
+	local timeRank: { [string]: number } = {}
+	for rank, data in ipairs(sorted) do
+		timeRank[data.name] = rank
+	end
+
+	local medalColors = {
+		[1] = Color3.fromRGB(255, 215,  50), -- gold
+		[2] = Color3.fromRGB(192, 192, 192), -- silver
+		[3] = Color3.fromRGB(205, 127,  50), -- bronze
+	}
+
 	for _, data in ipairs(allScores) do
 		local entry = playerCards[data.name]
 		if entry then
@@ -1107,6 +1121,10 @@ RoundScoresEvt.OnClientEvent:Connect(function(allScores: { { name: string, score
 			else
 				entry.scoreLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
 			end
+
+			-- Medal color for time, default gray for 4th+
+			entry.timeLabel.TextColor3 = medalColors[timeRank[data.name]]
+				or Color3.fromRGB(150, 150, 180)
 
 			entry.scoreLabel.Visible = true
 			entry.timeLabel.Visible = true
