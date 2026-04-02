@@ -957,36 +957,63 @@ gridContainer.Size = UDim2.new(1, 0, 1, 0)
 gridContainer.BackgroundTransparency = 1
 gridContainer.Parent = playerGridGui
 
-local gridLayout = Instance.new("UIGridLayout")
-gridLayout.CellSize = UDim2.new(0, 140, 0, 230)
-gridLayout.CellPadding = UDim2.new(0, 16, 0, 16)
-gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-gridLayout.VerticalAlignment = Enum.VerticalAlignment.Center
-gridLayout.SortOrder = Enum.SortOrder.Name
-gridLayout.Parent = gridContainer
+-- Top zone: featured (highest scorer) — centered, larger card
+local featuredSection = Instance.new("Frame")
+featuredSection.Name = "Featured"
+featuredSection.Size = UDim2.new(1, 0, 0, 240)
+featuredSection.Position = UDim2.new(0, 0, 0, 0)
+featuredSection.BackgroundTransparency = 1
+featuredSection.Parent = gridContainer
 
-local gridPadding = Instance.new("UIPadding")
-gridPadding.PaddingTop = UDim.new(0, 16)
-gridPadding.PaddingBottom = UDim.new(0, 16)
-gridPadding.PaddingLeft = UDim.new(0, 16)
-gridPadding.PaddingRight = UDim.new(0, 16)
-gridPadding.Parent = gridContainer
+-- Bottom zone: all other players in a smaller uniform grid
+local restSection = Instance.new("Frame")
+restSection.Name = "Rest"
+restSection.Size = UDim2.new(1, 0, 1, -240)
+restSection.Position = UDim2.new(0, 0, 0, 240)
+restSection.BackgroundTransparency = 1
+restSection.Parent = gridContainer
 
-local playerCards: { [string]: { colorFrame: Frame, avatarLabel: ImageLabel, scoreLabel: TextLabel, timeLabel: TextLabel } } = {}
+local restLayout = Instance.new("UIGridLayout")
+restLayout.CellSize = UDim2.new(0, 110, 0, 172)
+restLayout.CellPadding = UDim2.new(0, 12, 0, 12)
+restLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+restLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+restLayout.SortOrder = Enum.SortOrder.Name
+restLayout.Parent = restSection
 
+local restPadding = Instance.new("UIPadding")
+restPadding.PaddingTop = UDim.new(0, 10)
+restPadding.PaddingBottom = UDim.new(0, 10)
+restPadding.PaddingLeft = UDim.new(0, 10)
+restPadding.PaddingRight = UDim.new(0, 10)
+restPadding.Parent = restSection
+
+-- Sizes used when promoting/demoting cards
+local FEATURED_SIZE = UDim2.new(0, 168, 0, 228)
+local REST_CELL     = UDim2.new(0, 110, 0, 172) -- matches restLayout.CellSize
+
+local playerCards: { [string]: {
+	card: Frame,
+	colorFrame: Frame,
+	avatarLabel: ImageLabel,
+	scoreLabel: TextLabel,
+	timeLabel: TextLabel,
+} } = {}
+
+-- Cards use scale-based internal layout so they look correct at both sizes
 local function createPlayerCard(playerName: string, displayName: string, userId: number)
 	local playerCard = Instance.new("Frame")
-	playerCard.Name = playerName  -- keyed by Name (unique) for sorting
+	playerCard.Name = playerName
 	playerCard.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
 	playerCard.BackgroundTransparency = 0.1
 	playerCard.BorderSizePixel = 0
-	playerCard.Parent = gridContainer
+	playerCard.Parent = restSection   -- starts in the rest grid
 	Instance.new("UICorner", playerCard).CornerRadius = UDim.new(0, 12)
 
 	local avatarLabel = Instance.new("ImageLabel")
 	avatarLabel.Name = "Avatar"
-	avatarLabel.Size = UDim2.new(1, -16, 0, 100)
-	avatarLabel.Position = UDim2.new(0, 8, 0, 8)
+	avatarLabel.Size = UDim2.new(1, -12, 0.51, -8)
+	avatarLabel.Position = UDim2.new(0, 6, 0, 6)
 	avatarLabel.BackgroundTransparency = 1
 	avatarLabel.Image = ""
 	avatarLabel.Parent = playerCard
@@ -994,50 +1021,56 @@ local function createPlayerCard(playerName: string, displayName: string, userId:
 
 	local colorFrame = Instance.new("Frame")
 	colorFrame.Name = "ColorBox"
-	colorFrame.Size = UDim2.new(1, -16, 0, 40)
-	colorFrame.Position = UDim2.new(0, 8, 0, 114)
+	colorFrame.Size = UDim2.new(1, -12, 0.17, 0)
+	colorFrame.Position = UDim2.new(0, 6, 0.53, 0)
 	colorFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
 	colorFrame.BorderSizePixel = 0
 	colorFrame.Parent = playerCard
-	Instance.new("UICorner", colorFrame).CornerRadius = UDim.new(0, 8)
+	Instance.new("UICorner", colorFrame).CornerRadius = UDim.new(0, 6)
 
 	local nameLabel = Instance.new("TextLabel")
-	nameLabel.Size = UDim2.new(1, -8, 0, 22)
-	nameLabel.Position = UDim2.new(0, 4, 0, 156)
+	nameLabel.Size = UDim2.new(1, -4, 0.12, 0)
+	nameLabel.Position = UDim2.new(0, 2, 0.71, 0)
 	nameLabel.BackgroundTransparency = 1
 	nameLabel.Text = displayName
 	nameLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
-	nameLabel.TextSize = 15
 	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextScaled = true
 	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 	nameLabel.TextXAlignment = Enum.TextXAlignment.Center
 	nameLabel.Parent = playerCard
 
 	local cardScoreLabel = Instance.new("TextLabel")
-	cardScoreLabel.Size = UDim2.new(1, -8, 0, 24)
-	cardScoreLabel.Position = UDim2.new(0, 4, 0, 180)
+	cardScoreLabel.Size = UDim2.new(1, -4, 0.11, 0)
+	cardScoreLabel.Position = UDim2.new(0, 2, 0.83, 0)
 	cardScoreLabel.BackgroundTransparency = 1
 	cardScoreLabel.Text = ""
 	cardScoreLabel.TextColor3 = Color3.fromRGB(100, 220, 140)
-	cardScoreLabel.TextSize = 18
 	cardScoreLabel.Font = Enum.Font.GothamBold
+	cardScoreLabel.TextScaled = true
 	cardScoreLabel.TextXAlignment = Enum.TextXAlignment.Center
 	cardScoreLabel.Visible = false
 	cardScoreLabel.Parent = playerCard
 
 	local cardTimeLabel = Instance.new("TextLabel")
-	cardTimeLabel.Size = UDim2.new(1, -8, 0, 18)
-	cardTimeLabel.Position = UDim2.new(0, 4, 0, 206)
+	cardTimeLabel.Size = UDim2.new(1, -4, 0.09, 0)
+	cardTimeLabel.Position = UDim2.new(0, 2, 0.92, 0)
 	cardTimeLabel.BackgroundTransparency = 1
 	cardTimeLabel.Text = ""
 	cardTimeLabel.TextColor3 = Color3.fromRGB(150, 150, 180)
-	cardTimeLabel.TextSize = 13
 	cardTimeLabel.Font = Enum.Font.GothamMedium
+	cardTimeLabel.TextScaled = true
 	cardTimeLabel.TextXAlignment = Enum.TextXAlignment.Center
 	cardTimeLabel.Visible = false
 	cardTimeLabel.Parent = playerCard
 
-	playerCards[playerName] = { colorFrame = colorFrame, avatarLabel = avatarLabel, scoreLabel = cardScoreLabel, timeLabel = cardTimeLabel }
+	playerCards[playerName] = {
+		card = playerCard,
+		colorFrame = colorFrame,
+		avatarLabel = avatarLabel,
+		scoreLabel = cardScoreLabel,
+		timeLabel = cardTimeLabel,
+	}
 
 	-- Fetch avatar async, share cache with BillboardGui section
 	task.spawn(function()
@@ -1061,13 +1094,14 @@ local function createPlayerCard(playerName: string, displayName: string, userId:
 end
 
 showPlayerGrid = function()
-	-- Clear previous round's cards
-	for _, child in gridContainer:GetChildren() do
+	for _, child in featuredSection:GetChildren() do
+		if child:IsA("Frame") then child:Destroy() end
+	end
+	for _, child in restSection:GetChildren() do
 		if child:IsA("Frame") then child:Destroy() end
 	end
 	playerCards = {}
 
-	-- Create a card for every connected player
 	for _, p in ipairs(Players:GetPlayers()) do
 		createPlayerCard(p.Name, p.DisplayName, p.UserId)
 	end
@@ -1090,10 +1124,10 @@ FinalColorEvt.OnClientEvent:Connect(function(playerName: string, h: number, s: n
 end)
 
 --------------------------------------------------------------
--- EVENT: Round Scores (show score + time on each card)
+-- EVENT: Round Scores (show score + time; promote top scorer)
 --------------------------------------------------------------
 RoundScoresEvt.OnClientEvent:Connect(function(allScores: { { name: string, score: number, time: number } })
-	-- Rank players by submission time (ascending) to assign medal colors
+	-- Rank by time for medal colors
 	local sorted = table.clone(allScores)
 	table.sort(sorted, function(a, b) return a.time < b.time end)
 	local timeRank: { [string]: number } = {}
@@ -1102,32 +1136,59 @@ RoundScoresEvt.OnClientEvent:Connect(function(allScores: { { name: string, score
 	end
 
 	local medalColors = {
-		[1] = Color3.fromRGB(255, 215,  50), -- gold
-		[2] = Color3.fromRGB(192, 192, 192), -- silver
-		[3] = Color3.fromRGB(205, 127,  50), -- bronze
+		[1] = Color3.fromRGB(255, 215,  50),
+		[2] = Color3.fromRGB(192, 192, 192),
+		[3] = Color3.fromRGB(205, 127,  50),
 	}
 
+	-- Find the highest scorer
+	local topName = ""
+	local topScore = -1
+	for _, data in ipairs(allScores) do
+		if data.score > topScore then
+			topScore = data.score
+			topName = data.name
+		end
+	end
+
+	-- Populate all cards
 	for _, data in ipairs(allScores) do
 		local entry = playerCards[data.name]
-		if entry then
-			entry.scoreLabel.Text = string.format("%.2f / 10", data.score)
-			entry.timeLabel.Text = string.format("%.1fs", data.time)
+		if not entry then continue end
 
-			-- Color the score green → yellow → red based on value
-			if data.score >= 7 then
-				entry.scoreLabel.TextColor3 = Color3.fromRGB(100, 220, 140)
-			elseif data.score >= 4 then
-				entry.scoreLabel.TextColor3 = Color3.fromRGB(255, 210, 50)
-			else
-				entry.scoreLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
-			end
+		entry.scoreLabel.Text = string.format("%.2f / 10", data.score)
+		entry.timeLabel.Text = string.format("%.1fs", data.time)
 
-			-- Medal color for time, default gray for 4th+
-			entry.timeLabel.TextColor3 = medalColors[timeRank[data.name]]
-				or Color3.fromRGB(150, 150, 180)
+		if data.score >= 7 then
+			entry.scoreLabel.TextColor3 = Color3.fromRGB(100, 220, 140)
+		elseif data.score >= 4 then
+			entry.scoreLabel.TextColor3 = Color3.fromRGB(255, 210, 50)
+		else
+			entry.scoreLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
+		end
 
-			entry.scoreLabel.Visible = true
-			entry.timeLabel.Visible = true
+		entry.timeLabel.TextColor3 = medalColors[timeRank[data.name]]
+			or Color3.fromRGB(150, 150, 180)
+
+		entry.scoreLabel.Visible = true
+		entry.timeLabel.Visible = true
+	end
+
+	-- Promote top scorer to the featured zone
+	local winner = playerCards[topName]
+	if winner then
+		winner.card.Size = FEATURED_SIZE
+		winner.card.AnchorPoint = Vector2.new(0.5, 0.5)
+		winner.card.Position = UDim2.new(0.5, 0, 0.5, 0)
+		winner.card.Parent = featuredSection
+	end
+
+	-- Ensure everyone else is in the rest grid at the normal cell size
+	for name, entry in pairs(playerCards) do
+		if name ~= topName then
+			entry.card.Size = REST_CELL
+			entry.card.AnchorPoint = Vector2.new(0, 0)
+			entry.card.Parent = restSection
 		end
 	end
 end)
