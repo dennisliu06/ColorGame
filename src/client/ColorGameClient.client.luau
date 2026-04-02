@@ -662,6 +662,9 @@ RoundResult.OnClientEvent:Connect(function(score: number, tH: number, tS: number
 	clearAllBillboards()
 	setSlidersVisible(false)
 	submittedPanel.Visible = false
+	card.BackgroundColor3 = Color3.fromRGB(10, 10, 16)
+
+	showCard()
 
 	-- Side-by-side comparison
 	colorDisplay.Size = UDim2.new(0, 200, 0, 200)
