@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "skills": {
+    "roblox-game-development": {
+      "source": "greedychipmunk/agent-skills",
+      "sourceType": "github",
+      "computedHash": "b16788a78d99027cf822da31d4e71e380d511a50dc3835d8481849075d5ec04a"
+    }
+  }
+}
