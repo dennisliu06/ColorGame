@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+local colorScreenPart = workspace:WaitForChild("Arena"):WaitForChild("ColorScreen") :: BasePart
 
 local Events = ReplicatedStorage:WaitForChild("Events")
 local ShowColor       = Events:WaitForChild("ShowColor") :: RemoteEvent
@@ -20,6 +21,7 @@ local GameOverEvt     = Events:WaitForChild("GameOver") :: RemoteEvent
 local LobbyTimerEvt   = Events:WaitForChild("LobbyTimer") :: RemoteEvent
 local DebugElimEvt    = Events:WaitForChild("DebugEliminate") :: RemoteEvent
 local BroadcastColorEvt = Events:WaitForChild("BroadcastColor") :: RemoteEvent
+local FinalColorEvt     = Events:WaitForChild("FinalColor") :: RemoteEvent
 
 --------------------------------------------------------------
 -- SCREEN GUI
@@ -465,6 +467,13 @@ local function setupSliderDrag(key: string, onChanged: () -> ())
 	UserInputService.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1
 			or input.UserInputType == Enum.UserInputType.Touch then
+			if dragging then
+				FinalColorEvt:FireServer(
+					sliderValues.hue % 1,
+					math.clamp(sliderValues.sat, 0, 1),
+					math.clamp(sliderValues.bri, 0, 1)
+				)
+			end
 			dragging = false
 		end
 	end)
@@ -584,8 +593,10 @@ end
 --------------------------------------------------------------
 local hasSubmitted = false
 
--- forward-declared; assigned in the BILLBOARDS section below
+-- forward-declared; assigned in their respective sections below
 local clearAllBillboards: () -> ()
+local showPlayerGrid: () -> ()
+local hidePlayerGrid: () -> ()
 
 submitButton.MouseButton1Click:Connect(function()
 	if hasSubmitted then return end
@@ -630,6 +641,7 @@ end)
 --------------------------------------------------------------
 StartGuessing.OnClientEvent:Connect(function(guessTime: number)
 	clearAllBillboards()
+	showPlayerGrid()
 
 	instructionLabel.Text = "RECREATE THE COLOR!"
 	instructionLabel.TextColor3 = Color3.fromRGB(255, 240, 100)
@@ -660,6 +672,7 @@ end)
 --------------------------------------------------------------
 RoundResult.OnClientEvent:Connect(function(score: number, tH: number, tS: number, tV: number)
 	clearAllBillboards()
+	hidePlayerGrid()
 	setSlidersVisible(false)
 	submittedPanel.Visible = false
 	card.BackgroundColor3 = Color3.fromRGB(10, 10, 16)
@@ -718,6 +731,7 @@ end)
 PlayerElim.OnClientEvent:Connect(function(eliminatedName: string)
 	if not eliminatedName then return end
 	clearAllBillboards()
+	hidePlayerGrid()
 
 	showCard()
 	setSlidersVisible(false)
@@ -746,6 +760,7 @@ end)
 --------------------------------------------------------------
 GameOverEvt.OnClientEvent:Connect(function(winnerName: string)
 	clearAllBillboards()
+	hidePlayerGrid()
 	showCard()
 	setSlidersVisible(false)
 	colorDisplay.Visible = false
@@ -771,6 +786,7 @@ end)
 --------------------------------------------------------------
 LobbyTimerEvt.OnClientEvent:Connect(function(t: number)
 	clearAllBillboards()
+	hidePlayerGrid()
 	if not card.Visible then
 		showCard()
 	end
@@ -815,6 +831,7 @@ end)
 -- BILLBOARDS (live color above each player's head)
 --------------------------------------------------------------
 local activeBillboards: { [string]: BillboardGui } = {}
+local avatarCache: { [number]: string } = {}
 
 clearAllBillboards = function()
 	for name, billboard in pairs(activeBillboards) do
@@ -844,17 +861,37 @@ local function updatePlayerBillboard(playerName: string, h: number, s: number, v
 	if not billboard or not billboard.Parent then
 		billboard = Instance.new("BillboardGui")
 		billboard.Name = "ColorPreview"
-		billboard.Size = UDim2.new(0, 58, 0, 58)
-		billboard.StudsOffset = Vector3.new(0, 1.8, 0)
+		billboard.Size = UDim2.new(0, 132, 0, 68)
+		billboard.StudsOffset = Vector3.new(0, 2.4, 0)
 		billboard.AlwaysOnTop = true
 		billboard.Parent = head
 
+		local bg = Instance.new("Frame")
+		bg.Name = "BG"
+		bg.Size = UDim2.new(1, 0, 1, 0)
+		bg.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
+		bg.BackgroundTransparency = 0.25
+		bg.BorderSizePixel = 0
+		bg.Parent = billboard
+		Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 12)
+
+		local avatar = Instance.new("ImageLabel")
+		avatar.Name = "Avatar"
+		avatar.Size = UDim2.new(0, 58, 0, 58)
+		avatar.Position = UDim2.new(0, 5, 0.5, -29)
+		avatar.BackgroundTransparency = 1
+		avatar.Image = ""
+		avatar.Parent = bg
+		Instance.new("UICorner", avatar).CornerRadius = UDim.new(0, 8)
+
 		local colorBox = Instance.new("Frame")
 		colorBox.Name = "ColorBox"
-		colorBox.Size = UDim2.new(1, 0, 1, 0)
+		colorBox.Size = UDim2.new(0, 58, 0, 58)
+		colorBox.Position = UDim2.new(0, 68, 0.5, -29)
+		colorBox.BackgroundColor3 = Color3.fromHSV(h, s, v)
 		colorBox.BorderSizePixel = 0
-		colorBox.Parent = billboard
-		Instance.new("UICorner", colorBox).CornerRadius = UDim.new(0, 10)
+		colorBox.Parent = bg
+		Instance.new("UICorner", colorBox).CornerRadius = UDim.new(0, 8)
 
 		local stroke = Instance.new("UIStroke")
 		stroke.Color = Color3.fromRGB(255, 255, 255)
@@ -863,9 +900,33 @@ local function updatePlayerBillboard(playerName: string, h: number, s: number, v
 		stroke.Parent = colorBox
 
 		activeBillboards[playerName] = billboard
+
+		-- Fetch avatar thumbnail asynchronously, cache by UserId
+		local userId = targetPlayer.UserId
+		task.spawn(function()
+			local cachedUrl = avatarCache[userId]
+			if not cachedUrl then
+				local ok, url = pcall(
+					Players.GetUserThumbnailAsync, Players,
+					userId,
+					Enum.ThumbnailType.HeadShot,
+					Enum.ThumbnailSize.Size100x100
+				)
+				if ok then
+					avatarCache[userId] = url
+					cachedUrl = url
+				end
+			end
+			if cachedUrl and billboard.Parent then
+				local bg2 = billboard:FindFirstChild("BG") :: Frame
+				local av = bg2 and bg2:FindFirstChild("Avatar") :: ImageLabel
+				if av then av.Image = cachedUrl end
+			end
+		end)
 	end
 
-	local colorBox = billboard:FindFirstChild("ColorBox") :: Frame
+	local bg = billboard:FindFirstChild("BG") :: Frame
+	local colorBox = bg and bg:FindFirstChild("ColorBox") :: Frame
 	if colorBox then
 		colorBox.BackgroundColor3 = Color3.fromHSV(h, s, v)
 	end
@@ -876,4 +937,129 @@ end
 --------------------------------------------------------------
 BroadcastColorEvt.OnClientEvent:Connect(function(playerName: string, h: number, s: number, v: number)
 	updatePlayerBillboard(playerName, h, s, v)
+end)
+
+--------------------------------------------------------------
+-- COLORSCREEN PLAYER GRID (updates on slider release only)
+--------------------------------------------------------------
+local playerGridGui = Instance.new("SurfaceGui")
+playerGridGui.Name = "PlayerColorGrid"
+playerGridGui.Face = Enum.NormalId.Front
+playerGridGui.CanvasSize = Vector2.new(1024, 512)
+playerGridGui.ZOffset = 0.05
+playerGridGui.Enabled = false
+playerGridGui.Parent = colorScreenPart
+
+local gridContainer = Instance.new("Frame")
+gridContainer.Name = "GridContainer"
+gridContainer.Size = UDim2.new(1, 0, 1, 0)
+gridContainer.BackgroundTransparency = 1
+gridContainer.Parent = playerGridGui
+
+local gridLayout = Instance.new("UIGridLayout")
+gridLayout.CellSize = UDim2.new(0, 140, 0, 180)
+gridLayout.CellPadding = UDim2.new(0, 16, 0, 16)
+gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+gridLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+gridLayout.SortOrder = Enum.SortOrder.Name
+gridLayout.Parent = gridContainer
+
+local gridPadding = Instance.new("UIPadding")
+gridPadding.PaddingTop = UDim.new(0, 16)
+gridPadding.PaddingBottom = UDim.new(0, 16)
+gridPadding.PaddingLeft = UDim.new(0, 16)
+gridPadding.PaddingRight = UDim.new(0, 16)
+gridPadding.Parent = gridContainer
+
+local playerCards: { [string]: { colorFrame: Frame, avatarLabel: ImageLabel } } = {}
+
+local function createPlayerCard(playerName: string, displayName: string, userId: number)
+	local playerCard = Instance.new("Frame")
+	playerCard.Name = playerName  -- keyed by Name (unique) for sorting
+	playerCard.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+	playerCard.BackgroundTransparency = 0.1
+	playerCard.BorderSizePixel = 0
+	playerCard.Parent = gridContainer
+	Instance.new("UICorner", playerCard).CornerRadius = UDim.new(0, 12)
+
+	local avatarLabel = Instance.new("ImageLabel")
+	avatarLabel.Name = "Avatar"
+	avatarLabel.Size = UDim2.new(1, -16, 0, 100)
+	avatarLabel.Position = UDim2.new(0, 8, 0, 8)
+	avatarLabel.BackgroundTransparency = 1
+	avatarLabel.Image = ""
+	avatarLabel.Parent = playerCard
+	Instance.new("UICorner", avatarLabel).CornerRadius = UDim.new(0, 8)
+
+	local colorFrame = Instance.new("Frame")
+	colorFrame.Name = "ColorBox"
+	colorFrame.Size = UDim2.new(1, -16, 0, 40)
+	colorFrame.Position = UDim2.new(0, 8, 0, 114)
+	colorFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+	colorFrame.BorderSizePixel = 0
+	colorFrame.Parent = playerCard
+	Instance.new("UICorner", colorFrame).CornerRadius = UDim.new(0, 8)
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Size = UDim2.new(1, -8, 0, 22)
+	nameLabel.Position = UDim2.new(0, 4, 0, 156)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = displayName
+	nameLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+	nameLabel.TextSize = 15
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Center
+	nameLabel.Parent = playerCard
+
+	playerCards[playerName] = { colorFrame = colorFrame, avatarLabel = avatarLabel }
+
+	-- Fetch avatar async, share cache with BillboardGui section
+	task.spawn(function()
+		local cached = avatarCache[userId]
+		if not cached then
+			local ok, url = pcall(
+				Players.GetUserThumbnailAsync, Players,
+				userId,
+				Enum.ThumbnailType.HeadShot,
+				Enum.ThumbnailSize.Size100x100
+			)
+			if ok then
+				avatarCache[userId] = url
+				cached = url
+			end
+		end
+		if cached and playerCard.Parent then
+			avatarLabel.Image = cached
+		end
+	end)
+end
+
+showPlayerGrid = function()
+	-- Clear previous round's cards
+	for _, child in gridContainer:GetChildren() do
+		if child:IsA("Frame") then child:Destroy() end
+	end
+	playerCards = {}
+
+	-- Create a card for every connected player
+	for _, p in ipairs(Players:GetPlayers()) do
+		createPlayerCard(p.Name, p.DisplayName, p.UserId)
+	end
+
+	playerGridGui.Enabled = true
+end
+
+hidePlayerGrid = function()
+	playerGridGui.Enabled = false
+end
+
+--------------------------------------------------------------
+-- EVENT: Final Color (slider released — update ColorScreen card)
+--------------------------------------------------------------
+FinalColorEvt.OnClientEvent:Connect(function(playerName: string, h: number, s: number, v: number)
+	local entry = playerCards[playerName]
+	if entry then
+		entry.colorFrame.BackgroundColor3 = Color3.fromHSV(h, s, v)
+	end
 end)
