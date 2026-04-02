@@ -7,6 +7,8 @@ local GameConfig = require(ReplicatedStorage:WaitForChild("GameConfig"))
 
 local PillarManager = {}
 
+--- hello
+
 --------------------------------------------------------------
 -- STATE
 --------------------------------------------------------------
@@ -99,7 +101,7 @@ function PillarManager.SpawnPillars(players: { Player })
 			local hum = char:FindFirstChildOfClass("Humanoid") :: Humanoid
 			if hum then
 				hum.WalkSpeed = 0
-				hum.JumpPower = 0
+				hum.JumpPower = 50
 			end
 		end
 	end
