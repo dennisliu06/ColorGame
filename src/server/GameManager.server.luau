@@ -35,6 +35,7 @@ local LobbyTimer       = makeRemote("LobbyTimer")
 local DebugEliminate   = makeRemote("DebugEliminate")
 local BroadcastColor   = makeRemote("BroadcastColor")
 local FinalColor       = makeRemote("FinalColor")
+local RoundScores      = makeRemote("RoundScores")
 
 --------------------------------------------------------------
 -- ARENA REFERENCES (built in Studio — see Phase 4)
@@ -163,11 +164,14 @@ local function playRound(roundNum: number, alivePlayers: { Player }): number
 
 	-- ── PHASE 2: GUESSING ──
 	local guesses: { [Player]: { h: number, s: number, v: number } } = {}
+	local submitTimes: { [Player]: number } = {}
+	local guessStartTime = 0
 
 	local conn = SubmitGuess.OnServerEvent:Connect(function(player, h, s, v)
 		if typeof(h) == "number" and typeof(s) == "number" and typeof(v) == "number" then
 			if not guesses[player] then
 				guesses[player] = { h = h, s = s, v = v }
+				submitTimes[player] = math.clamp(tick() - guessStartTime, 0, GameConfig.GUESS_TIME)
 			end
 		end
 	end)
@@ -178,6 +182,7 @@ local function playRound(roundNum: number, alivePlayers: { Player }): number
 
 	-- Wait for all guesses or timeout
 	local startTime = tick()
+	guessStartTime = startTime
 	while tick() - startTime < GameConfig.GUESS_TIME do
 		local allIn = true
 		for _, player in ipairs(alivePlayers) do
@@ -193,6 +198,8 @@ local function playRound(roundNum: number, alivePlayers: { Player }): number
 	conn:Disconnect()
 
 	-- ── PHASE 3: SCORE + RAISE PILLARS ──
+	local allScores: { { name: string, score: number, time: number } } = {}
+
 	for _, player in ipairs(alivePlayers) do
 		local guess = guesses[player]
 		local score = 0
@@ -201,9 +208,13 @@ local function playRound(roundNum: number, alivePlayers: { Player }): number
 			score = calculateScore(tH, tS, tV, guess.h, guess.s, guess.v)
 		end
 
+		local timeTaken = math.floor((submitTimes[player] or GameConfig.GUESS_TIME) * 10 + 0.5) / 10
+		table.insert(allScores, { name = player.Name, score = score, time = timeTaken })
 		PillarManager.RaisePillar(player, score)
 		RoundResult:FireClient(player, score, tH, tS, tV)
 	end
+
+	RoundScores:FireAllClients(allScores)
 
 	task.wait(3)
 

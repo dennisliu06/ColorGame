@@ -22,6 +22,7 @@ local LobbyTimerEvt   = Events:WaitForChild("LobbyTimer") :: RemoteEvent
 local DebugElimEvt    = Events:WaitForChild("DebugEliminate") :: RemoteEvent
 local BroadcastColorEvt = Events:WaitForChild("BroadcastColor") :: RemoteEvent
 local FinalColorEvt     = Events:WaitForChild("FinalColor") :: RemoteEvent
+local RoundScoresEvt    = Events:WaitForChild("RoundScores") :: RemoteEvent
 
 --------------------------------------------------------------
 -- SCREEN GUI
@@ -612,6 +613,7 @@ end)
 -- EVENT: Show Color (memorize phase)
 --------------------------------------------------------------
 ShowColor.OnClientEvent:Connect(function(h: number, s: number, v: number, roundNum: number, maxRounds: number)
+	hidePlayerGrid()
 	showCard()
 	hasSubmitted = false
 	submitButton.Text = "SUBMIT"
@@ -672,7 +674,6 @@ end)
 --------------------------------------------------------------
 RoundResult.OnClientEvent:Connect(function(score: number, tH: number, tS: number, tV: number)
 	clearAllBillboards()
-	hidePlayerGrid()
 	setSlidersVisible(false)
 	submittedPanel.Visible = false
 	card.BackgroundColor3 = Color3.fromRGB(10, 10, 16)
@@ -957,7 +958,7 @@ gridContainer.BackgroundTransparency = 1
 gridContainer.Parent = playerGridGui
 
 local gridLayout = Instance.new("UIGridLayout")
-gridLayout.CellSize = UDim2.new(0, 140, 0, 180)
+gridLayout.CellSize = UDim2.new(0, 140, 0, 230)
 gridLayout.CellPadding = UDim2.new(0, 16, 0, 16)
 gridLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
 gridLayout.VerticalAlignment = Enum.VerticalAlignment.Center
@@ -971,7 +972,7 @@ gridPadding.PaddingLeft = UDim.new(0, 16)
 gridPadding.PaddingRight = UDim.new(0, 16)
 gridPadding.Parent = gridContainer
 
-local playerCards: { [string]: { colorFrame: Frame, avatarLabel: ImageLabel } } = {}
+local playerCards: { [string]: { colorFrame: Frame, avatarLabel: ImageLabel, scoreLabel: TextLabel, timeLabel: TextLabel } } = {}
 
 local function createPlayerCard(playerName: string, displayName: string, userId: number)
 	local playerCard = Instance.new("Frame")
@@ -1012,7 +1013,31 @@ local function createPlayerCard(playerName: string, displayName: string, userId:
 	nameLabel.TextXAlignment = Enum.TextXAlignment.Center
 	nameLabel.Parent = playerCard
 
-	playerCards[playerName] = { colorFrame = colorFrame, avatarLabel = avatarLabel }
+	local cardScoreLabel = Instance.new("TextLabel")
+	cardScoreLabel.Size = UDim2.new(1, -8, 0, 24)
+	cardScoreLabel.Position = UDim2.new(0, 4, 0, 180)
+	cardScoreLabel.BackgroundTransparency = 1
+	cardScoreLabel.Text = ""
+	cardScoreLabel.TextColor3 = Color3.fromRGB(100, 220, 140)
+	cardScoreLabel.TextSize = 18
+	cardScoreLabel.Font = Enum.Font.GothamBold
+	cardScoreLabel.TextXAlignment = Enum.TextXAlignment.Center
+	cardScoreLabel.Visible = false
+	cardScoreLabel.Parent = playerCard
+
+	local cardTimeLabel = Instance.new("TextLabel")
+	cardTimeLabel.Size = UDim2.new(1, -8, 0, 18)
+	cardTimeLabel.Position = UDim2.new(0, 4, 0, 206)
+	cardTimeLabel.BackgroundTransparency = 1
+	cardTimeLabel.Text = ""
+	cardTimeLabel.TextColor3 = Color3.fromRGB(150, 150, 180)
+	cardTimeLabel.TextSize = 13
+	cardTimeLabel.Font = Enum.Font.GothamMedium
+	cardTimeLabel.TextXAlignment = Enum.TextXAlignment.Center
+	cardTimeLabel.Visible = false
+	cardTimeLabel.Parent = playerCard
+
+	playerCards[playerName] = { colorFrame = colorFrame, avatarLabel = avatarLabel, scoreLabel = cardScoreLabel, timeLabel = cardTimeLabel }
 
 	-- Fetch avatar async, share cache with BillboardGui section
 	task.spawn(function()
@@ -1061,5 +1086,30 @@ FinalColorEvt.OnClientEvent:Connect(function(playerName: string, h: number, s: n
 	local entry = playerCards[playerName]
 	if entry then
 		entry.colorFrame.BackgroundColor3 = Color3.fromHSV(h, s, v)
+	end
+end)
+
+--------------------------------------------------------------
+-- EVENT: Round Scores (show score + time on each card)
+--------------------------------------------------------------
+RoundScoresEvt.OnClientEvent:Connect(function(allScores: { { name: string, score: number, time: number } })
+	for _, data in ipairs(allScores) do
+		local entry = playerCards[data.name]
+		if entry then
+			entry.scoreLabel.Text = string.format("%.2f / 10", data.score)
+			entry.timeLabel.Text = string.format("%.1fs", data.time)
+
+			-- Color the score green → yellow → red based on value
+			if data.score >= 7 then
+				entry.scoreLabel.TextColor3 = Color3.fromRGB(100, 220, 140)
+			elseif data.score >= 4 then
+				entry.scoreLabel.TextColor3 = Color3.fromRGB(255, 210, 50)
+			else
+				entry.scoreLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
+			end
+
+			entry.scoreLabel.Visible = true
+			entry.timeLabel.Visible = true
+		end
 	end
 end)
