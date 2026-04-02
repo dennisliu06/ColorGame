@@ -171,7 +171,7 @@ for _, def in ipairs(sliderDefs) do
 	local track = Instance.new("Frame")
 	track.Name = "Track"
 	track.Size = UDim2.new(1, 0, 1, 0)
-	track.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+	track.BackgroundColor3 = Color3.new(1, 1, 1)
 	track.BorderSizePixel = 0
 	track.Parent = frame
 	Instance.new("UICorner", track).CornerRadius = UDim.new(0, 12)
