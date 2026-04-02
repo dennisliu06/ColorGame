@@ -63,7 +63,7 @@ local function calculateScore(tH: number, tS: number, tV: number, gH: number, gS
 		+ (satDiff * GameConfig.SAT_WEIGHT)
 		+ (briDiff * GameConfig.BRI_WEIGHT)
 
-	return math.clamp(math.round((1 - totalDiff) * 10), 0, 10)
+	return math.clamp(math.round((1 - totalDiff) * 1000) / 100, 0, 10)
 end
 
 --------------------------------------------------------------
