@@ -19,6 +19,7 @@ local PlayerElim      = Events:WaitForChild("PlayerEliminated") :: RemoteEvent
 local GameOverEvt     = Events:WaitForChild("GameOver") :: RemoteEvent
 local LobbyTimerEvt   = Events:WaitForChild("LobbyTimer") :: RemoteEvent
 local DebugElimEvt    = Events:WaitForChild("DebugEliminate") :: RemoteEvent
+local BroadcastColorEvt = Events:WaitForChild("BroadcastColor") :: RemoteEvent
 
 --------------------------------------------------------------
 -- SCREEN GUI
@@ -402,12 +403,23 @@ end
 --------------------------------------------------------------
 -- COLOR PREVIEW
 --------------------------------------------------------------
+local lastBroadcastTime = 0
+
 local function updatePlayerColor()
 	playerColorDisplay.BackgroundColor3 = Color3.fromHSV(
 		sliderValues.hue % 1,
 		math.clamp(sliderValues.sat, 0, 1),
 		math.clamp(sliderValues.bri, 0, 1)
 	)
+	local now = tick()
+	if now - lastBroadcastTime >= 0.1 then
+		lastBroadcastTime = now
+		BroadcastColorEvt:FireServer(
+			sliderValues.hue % 1,
+			math.clamp(sliderValues.sat, 0, 1),
+			math.clamp(sliderValues.bri, 0, 1)
+		)
+	end
 end
 
 --------------------------------------------------------------
@@ -572,6 +584,9 @@ end
 --------------------------------------------------------------
 local hasSubmitted = false
 
+-- forward-declared; assigned in the BILLBOARDS section below
+local clearAllBillboards: () -> ()
+
 submitButton.MouseButton1Click:Connect(function()
 	if hasSubmitted then return end
 	hasSubmitted = true
@@ -614,6 +629,8 @@ end)
 -- EVENT: Start Guessing
 --------------------------------------------------------------
 StartGuessing.OnClientEvent:Connect(function(guessTime: number)
+	clearAllBillboards()
+
 	instructionLabel.Text = "RECREATE THE COLOR!"
 	instructionLabel.TextColor3 = Color3.fromRGB(255, 240, 100)
 
@@ -642,6 +659,7 @@ end)
 -- EVENT: Round Result
 --------------------------------------------------------------
 RoundResult.OnClientEvent:Connect(function(score: number, tH: number, tS: number, tV: number)
+	clearAllBillboards()
 	setSlidersVisible(false)
 	submittedPanel.Visible = false
 
@@ -696,6 +714,7 @@ end)
 --------------------------------------------------------------
 PlayerElim.OnClientEvent:Connect(function(eliminatedName: string)
 	if not eliminatedName then return end
+	clearAllBillboards()
 
 	showCard()
 	setSlidersVisible(false)
@@ -723,6 +742,7 @@ end)
 -- EVENT: Game Over
 --------------------------------------------------------------
 GameOverEvt.OnClientEvent:Connect(function(winnerName: string)
+	clearAllBillboards()
 	showCard()
 	setSlidersVisible(false)
 	colorDisplay.Visible = false
@@ -747,6 +767,7 @@ end)
 -- EVENT: Lobby Timer
 --------------------------------------------------------------
 LobbyTimerEvt.OnClientEvent:Connect(function(t: number)
+	clearAllBillboards()
 	if not card.Visible then
 		showCard()
 	end
@@ -785,4 +806,71 @@ Instance.new("UICorner", debugBtn).CornerRadius = UDim.new(0, 8)
 
 debugBtn.MouseButton1Click:Connect(function()
 	DebugElimEvt:FireServer()
+end)
+
+--------------------------------------------------------------
+-- BILLBOARDS (live color above each player's head)
+--------------------------------------------------------------
+local activeBillboards: { [string]: BillboardGui } = {}
+
+clearAllBillboards = function()
+	for name, billboard in pairs(activeBillboards) do
+		if billboard and billboard.Parent then
+			billboard:Destroy()
+		end
+		activeBillboards[name] = nil
+	end
+end
+
+local function updatePlayerBillboard(playerName: string, h: number, s: number, v: number)
+	if playerName == player.Name then return end
+
+	local targetPlayer: Player? = nil
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p.Name == playerName then
+			targetPlayer = p
+			break
+		end
+	end
+	if not targetPlayer or not targetPlayer.Character then return end
+
+	local head = targetPlayer.Character:FindFirstChild("Head") :: BasePart
+	if not head then return end
+
+	local billboard = activeBillboards[playerName]
+	if not billboard or not billboard.Parent then
+		billboard = Instance.new("BillboardGui")
+		billboard.Name = "ColorPreview"
+		billboard.Size = UDim2.new(0, 58, 0, 58)
+		billboard.StudsOffset = Vector3.new(0, 1.8, 0)
+		billboard.AlwaysOnTop = true
+		billboard.Parent = head
+
+		local colorBox = Instance.new("Frame")
+		colorBox.Name = "ColorBox"
+		colorBox.Size = UDim2.new(1, 0, 1, 0)
+		colorBox.BorderSizePixel = 0
+		colorBox.Parent = billboard
+		Instance.new("UICorner", colorBox).CornerRadius = UDim.new(0, 10)
+
+		local stroke = Instance.new("UIStroke")
+		stroke.Color = Color3.fromRGB(255, 255, 255)
+		stroke.Thickness = 2
+		stroke.Transparency = 0.45
+		stroke.Parent = colorBox
+
+		activeBillboards[playerName] = billboard
+	end
+
+	local colorBox = billboard:FindFirstChild("ColorBox") :: Frame
+	if colorBox then
+		colorBox.BackgroundColor3 = Color3.fromHSV(h, s, v)
+	end
+end
+
+--------------------------------------------------------------
+-- EVENT: Broadcast Color (other players' live guess)
+--------------------------------------------------------------
+BroadcastColorEvt.OnClientEvent:Connect(function(playerName: string, h: number, s: number, v: number)
+	updatePlayerBillboard(playerName, h, s, v)
 end)
