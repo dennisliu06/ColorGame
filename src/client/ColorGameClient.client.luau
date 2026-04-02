@@ -97,15 +97,15 @@ roundLabel.BorderSizePixel = 0
 roundLabel.Parent = card
 Instance.new("UICorner", roundLabel).CornerRadius = UDim.new(0, 10)
 
--- Instruction (center, big)
+-- Instruction (left-center, avoids overlapping timer on the right)
 local instructionLabel = Instance.new("TextLabel")
 instructionLabel.Name = "Instruction"
-instructionLabel.Size = UDim2.new(0, 340, 0, 50)
-instructionLabel.Position = UDim2.new(0.5, -170, 0, 8)
+instructionLabel.Size = UDim2.new(0, 200, 0, 52)
+instructionLabel.Position = UDim2.new(0, 138, 0, 8)
 instructionLabel.BackgroundTransparency = 1
 instructionLabel.Text = "MEMORIZE THE COLOR!"
 instructionLabel.TextColor3 = Color3.new(1, 1, 1)
-instructionLabel.TextSize = 28
+instructionLabel.TextSize = 22
 instructionLabel.Font = Enum.Font.GothamBold
 instructionLabel.TextXAlignment = Enum.TextXAlignment.Center
 instructionLabel.TextWrapped = true
@@ -114,15 +114,58 @@ instructionLabel.Parent = card
 -- Timer (top-right, huge)
 local timerLabel = Instance.new("TextLabel")
 timerLabel.Name = "Timer"
-timerLabel.Size = UDim2.new(0, 90, 0, 72)
-timerLabel.Position = UDim2.new(1, -100, 0, -4)
+timerLabel.Size = UDim2.new(0, 220, 0, 84)
+timerLabel.Position = UDim2.new(1, -6, 0, -4)
+timerLabel.AnchorPoint = Vector2.new(1, 0)
 timerLabel.BackgroundTransparency = 1
 timerLabel.Text = ""
 timerLabel.TextColor3 = Color3.new(1, 1, 1)
-timerLabel.TextSize = 72
+timerLabel.TextScaled = true
 timerLabel.Font = Enum.Font.GothamBold
 timerLabel.Parent = card
 
+-- UIScale child so pulse works with TextScaled (TextSize is ignored when TextScaled = true)
+local timerScale = Instance.new("UIScale")
+timerScale.Scale = 1
+timerScale.Parent = timerLabel
+
+-- Decimal countdown — updates at 20fps, pulses on whole-second crossings.
+-- checkStop: optional callback that returns true to break early.
+local function runDecimalCountdown(duration: number, checkStop: (() -> boolean)?)
+	local endTime = os.clock() + duration
+	local lastWhole = math.ceil(duration) + 1
+
+	while true do
+		local remaining = math.max(0, endTime - os.clock())
+
+		if remaining <= 2 then
+			timerLabel.TextColor3 = Color3.fromRGB(255, 65, 65)
+		elseif remaining <= 4 then
+			timerLabel.TextColor3 = Color3.fromRGB(255, 210, 50)
+		else
+			timerLabel.TextColor3 = Color3.new(1, 1, 1)
+		end
+
+		local whole = math.ceil(remaining)
+		if whole < lastWhole and whole > 0 then
+			lastWhole = whole
+			timerScale.Scale = 1.3
+			TweenService:Create(timerScale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+				Scale = 1,
+			}):Play()
+		end
+
+		timerLabel.Text = string.format("%.2f", remaining)
+
+		if remaining <= 0 then break end
+		if checkStop and checkStop() then break end
+		task.wait(0.05)
+	end
+
+	timerLabel.Text = ""
+end
+
+-- Lobby timer is driven by integer server ticks — no decimal needed.
 local function pulseTimer(t: number)
 	timerLabel.Text = tostring(t)
 	if t <= 2 then
@@ -132,9 +175,9 @@ local function pulseTimer(t: number)
 	else
 		timerLabel.TextColor3 = Color3.new(1, 1, 1)
 	end
-	timerLabel.TextSize = 96
-	TweenService:Create(timerLabel, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-		TextSize = 72,
+	timerScale.Scale = 1.3
+	TweenService:Create(timerScale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		Scale = 1,
 	}):Play()
 end
 
@@ -512,12 +555,7 @@ ShowColor.OnClientEvent:Connect(function(h: number, s: number, v: number, roundN
 	setSlidersVisible(false)
 	playerColorDisplay.Visible = false
 
-	-- Countdown with pulse
-	for t = 5, 1, -1 do
-		pulseTimer(t)
-		task.wait(1)
-	end
-	timerLabel.Text = ""
+	runDecimalCountdown(5)
 	colorDisplay.Visible = false
 end)
 
@@ -539,12 +577,7 @@ StartGuessing.OnClientEvent:Connect(function(guessTime: number)
 	setSlidersVisible(true)
 	resetSliders()
 
-	for t = guessTime, 1, -1 do
-		pulseTimer(t)
-		task.wait(1)
-		if hasSubmitted then break end
-	end
-	timerLabel.Text = ""
+	runDecimalCountdown(guessTime, function() return hasSubmitted end)
 
 	if not hasSubmitted then
 		hasSubmitted = true
