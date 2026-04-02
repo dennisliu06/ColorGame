@@ -34,6 +34,7 @@ local WaterLevel       = makeRemote("WaterLevel")
 local LobbyTimer       = makeRemote("LobbyTimer")
 local DebugEliminate   = makeRemote("DebugEliminate")
 local BroadcastColor   = makeRemote("BroadcastColor")
+local SkipLobby        = makeRemote("SkipLobby")
 
 --------------------------------------------------------------
 -- ARENA REFERENCES (built in Studio — see Phase 4)
@@ -191,20 +192,27 @@ local function playRound(roundNum: number, alivePlayers: { Player }): number
 
 	conn:Disconnect()
 
-	-- ── PHASE 3: SCORE + RAISE PILLARS ──
+	-- ── PHASE 3a: SHOW SCORES ──
+	local scores: { [Player]: number } = {}
 	for _, player in ipairs(alivePlayers) do
 		local guess = guesses[player]
 		local score = 0
-
 		if guess then
 			score = calculateScore(tH, tS, tV, guess.h, guess.s, guess.v)
 		end
-
-		PillarManager.RaisePillar(player, score)
+		scores[player] = score
 		RoundResult:FireClient(player, score, tH, tS, tV)
 	end
 
-	task.wait(3)
+	-- Let players read their score before anything moves
+	task.wait(GameConfig.SCORE_DISPLAY_DELAY)
+
+	-- ── PHASE 3b: RAISE PILLARS ──
+	for _, player in ipairs(alivePlayers) do
+		PillarManager.RaisePillar(player, scores[player])
+	end
+
+	task.wait(2)
 
 	-- ── PHASE 4: RAISE WATER ──
 	local newWaterY = GameConfig.WATER_START_Y
@@ -242,7 +250,15 @@ local function runGame()
 		until #Players:GetPlayers() >= GameConfig.MIN_PLAYERS
 
 		-- Lobby countdown
+		local lobbySkipped = false
+		local skipConn = SkipLobby.OnServerEvent:Connect(function(player: Player)
+			if player.UserId == game.CreatorId then
+				lobbySkipped = true
+			end
+		end)
+
 		for t = GameConfig.LOBBY_WAIT, 1, -1 do
+			if lobbySkipped then break end
 			if screenTimer then screenTimer.Text = tostring(t) end
 			if screenRound then screenRound.Text = "Game starting soon..." end
 			for _, p in ipairs(Players:GetPlayers()) do
@@ -250,6 +266,7 @@ local function runGame()
 			end
 			task.wait(1)
 		end
+		skipConn:Disconnect()
 		if screenTimer then screenTimer.Text = "" end
 
 		-- ── SPAWN PILLARS ──

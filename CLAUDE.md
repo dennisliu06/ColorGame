@@ -223,7 +223,7 @@ PlayerData = {
 
 ## Current Development Phase
 
-Phase 1 (NOW): Core gameplay loop — pillars, sliders, scoring, water rising, elimination, basic lobby
+Phase 1: Core gameplay loop — pillars, sliders, scoring, water rising, elimination, basic lobby
 Phase 2: UI overhaul — premium feel, animations, mobile-responsive, live leaderboard during games
 Phase 3: Real-time color visibility (see other players mixing), nuanced scoring system, timing multiplier
 Phase 4: Currency system, shop/store, pillar skins, emotes, auras, winning animations

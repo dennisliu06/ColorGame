@@ -62,7 +62,10 @@ cardStroke.Color = Color3.fromRGB(90, 90, 120)
 cardStroke.Thickness = 2
 cardStroke.Parent = card
 
+local hideCardGeneration = 0
+
 local function showCard()
+	hideCardGeneration += 1  -- cancel any pending hideCard delayed callback
 	card.Position = CARD_ENTER
 	card.Visible = true
 	TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
@@ -71,12 +74,16 @@ local function showCard()
 end
 
 local function hideCard()
+	hideCardGeneration += 1
+	local gen = hideCardGeneration
 	TweenService:Create(card, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
 		Position = CARD_ENTER,
 	}):Play()
 	task.delay(0.22, function()
-		card.Visible = false
-		card.BackgroundColor3 = Color3.fromRGB(10, 10, 16)
+		if hideCardGeneration == gen then
+			card.Visible = false
+			card.BackgroundColor3 = Color3.fromRGB(10, 10, 16)
+		end
 	end)
 end
 
@@ -124,16 +131,10 @@ timerLabel.TextScaled = true
 timerLabel.Font = Enum.Font.GothamBold
 timerLabel.Parent = card
 
--- UIScale child so pulse works with TextScaled (TextSize is ignored when TextScaled = true)
-local timerScale = Instance.new("UIScale")
-timerScale.Scale = 1
-timerScale.Parent = timerLabel
-
--- Decimal countdown — updates at 20fps, pulses on whole-second crossings.
+-- Decimal countdown — updates at 20fps.
 -- checkStop: optional callback that returns true to break early.
 local function runDecimalCountdown(duration: number, checkStop: (() -> boolean)?)
 	local endTime = os.clock() + duration
-	local lastWhole = math.ceil(duration) + 1
 
 	while true do
 		local remaining = math.max(0, endTime - os.clock())
@@ -144,15 +145,6 @@ local function runDecimalCountdown(duration: number, checkStop: (() -> boolean)?
 			timerLabel.TextColor3 = Color3.fromRGB(255, 210, 50)
 		else
 			timerLabel.TextColor3 = Color3.new(1, 1, 1)
-		end
-
-		local whole = math.ceil(remaining)
-		if whole < lastWhole and whole > 0 then
-			lastWhole = whole
-			timerScale.Scale = 1.3
-			TweenService:Create(timerScale, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
-				Scale = 1,
-			}):Play()
 		end
 
 		timerLabel.Text = string.format("%.2f", remaining)
@@ -700,15 +692,35 @@ RoundResult.OnClientEvent:Connect(function(score: number, tH: number, tS: number
 		scoreLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
 	end
 
-	scoreLabel.TextSize = 24
-	scoreLabel.Text = scoreText
-	ratingLabel.Text = rating
-	ratingLabel.TextColor3 = ratingColor
-	TweenService:Create(scoreLabel, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+	scoreLabel.TextSize = 52
+	scoreLabel.Text = "0.00 / 10"
+	ratingLabel.Text = ""
+
+	-- Count up with ease-in-out (slow → fast → slow)
+	local COUNT_DURATION = 4.0
+	local countStart = tick()
+	repeat
+		task.wait()
+		local t = math.min((tick() - countStart) / COUNT_DURATION, 1)
+		local eased = if t < 0.5 then 256 * t^9 else 1 - (-2 * t + 2)^9 / 2
+		scoreLabel.Text = string.format("%.2f / 10", eased * score)
+	until tick() - countStart >= COUNT_DURATION
+	scoreLabel.Text = string.format("%.2f / 10", score)
+
+	-- Pulse: quick pop up then elastic bounce back
+	TweenService:Create(scoreLabel, TweenInfo.new(0.12, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TextSize = 78,
+	}):Play()
+	task.wait(0.12)
+	TweenService:Create(scoreLabel, TweenInfo.new(0.55, Enum.EasingStyle.Elastic, Enum.EasingDirection.Out), {
 		TextSize = 52,
 	}):Play()
+	task.wait(0.55)
 
-	task.wait(3.5)
+	ratingLabel.Text = rating
+	ratingLabel.TextColor3 = ratingColor
+
+	task.wait(1.5)
 	hideCard()
 end)
 
@@ -788,6 +800,32 @@ LobbyTimerEvt.OnClientEvent:Connect(function(t: number)
 		hideCard()
 	end
 end)
+
+--------------------------------------------------------------
+-- DEV: Skip Lobby Button (creator only)
+--------------------------------------------------------------
+local SkipLobbyEvt = Events:WaitForChild("SkipLobby") :: RemoteEvent
+
+if player.UserId == game.CreatorId then
+	local skipBtn = Instance.new("TextButton")
+	skipBtn.Name = "SkipLobbyBtn"
+	skipBtn.Size = UDim2.new(0, 150, 0, 34)
+	skipBtn.Position = UDim2.new(1, -160, 0, 50)
+	skipBtn.BackgroundColor3 = Color3.fromRGB(30, 120, 180)
+	skipBtn.BackgroundTransparency = 0.15
+	skipBtn.Text = "⏭ Skip Lobby"
+	skipBtn.TextColor3 = Color3.new(1, 1, 1)
+	skipBtn.TextSize = 15
+	skipBtn.Font = Enum.Font.GothamBold
+	skipBtn.BorderSizePixel = 0
+	skipBtn.ZIndex = 10
+	skipBtn.Parent = screenGui
+	Instance.new("UICorner", skipBtn).CornerRadius = UDim.new(0, 8)
+
+	skipBtn.MouseButton1Click:Connect(function()
+		SkipLobbyEvt:FireServer()
+	end)
+end
 
 --------------------------------------------------------------
 -- DEBUG: Self-Eliminate Button (testing only)
