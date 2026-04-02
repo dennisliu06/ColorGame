@@ -9,6 +9,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local player = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
+local colorScreenPart = workspace:WaitForChild("Arena"):WaitForChild("ColorScreen") :: BasePart
 
 local Events = ReplicatedStorage:WaitForChild("Events")
 local ShowColor       = Events:WaitForChild("ShowColor") :: RemoteEvent
@@ -20,6 +21,8 @@ local GameOverEvt     = Events:WaitForChild("GameOver") :: RemoteEvent
 local LobbyTimerEvt   = Events:WaitForChild("LobbyTimer") :: RemoteEvent
 local DebugElimEvt    = Events:WaitForChild("DebugEliminate") :: RemoteEvent
 local BroadcastColorEvt = Events:WaitForChild("BroadcastColor") :: RemoteEvent
+local FinalColorEvt     = Events:WaitForChild("FinalColor") :: RemoteEvent
+local RoundScoresEvt    = Events:WaitForChild("RoundScores") :: RemoteEvent
 
 --------------------------------------------------------------
 -- SCREEN GUI
@@ -457,6 +460,13 @@ local function setupSliderDrag(key: string, onChanged: () -> ())
 	UserInputService.InputEnded:Connect(function(input)
 		if input.UserInputType == Enum.UserInputType.MouseButton1
 			or input.UserInputType == Enum.UserInputType.Touch then
+			if dragging then
+				FinalColorEvt:FireServer(
+					sliderValues.hue % 1,
+					math.clamp(sliderValues.sat, 0, 1),
+					math.clamp(sliderValues.bri, 0, 1)
+				)
+			end
 			dragging = false
 		end
 	end)
@@ -576,8 +586,10 @@ end
 --------------------------------------------------------------
 local hasSubmitted = false
 
--- forward-declared; assigned in the BILLBOARDS section below
+-- forward-declared; assigned in their respective sections below
 local clearAllBillboards: () -> ()
+local showPlayerGrid: () -> ()
+local hidePlayerGrid: () -> ()
 
 submitButton.MouseButton1Click:Connect(function()
 	if hasSubmitted then return end
@@ -593,6 +605,7 @@ end)
 -- EVENT: Show Color (memorize phase)
 --------------------------------------------------------------
 ShowColor.OnClientEvent:Connect(function(h: number, s: number, v: number, roundNum: number, maxRounds: number)
+	hidePlayerGrid()
 	showCard()
 	hasSubmitted = false
 	submitButton.Text = "SUBMIT"
@@ -622,6 +635,7 @@ end)
 --------------------------------------------------------------
 StartGuessing.OnClientEvent:Connect(function(guessTime: number)
 	clearAllBillboards()
+	showPlayerGrid()
 
 	instructionLabel.Text = "RECREATE THE COLOR!"
 	instructionLabel.TextColor3 = Color3.fromRGB(255, 240, 100)
@@ -730,6 +744,7 @@ end)
 PlayerElim.OnClientEvent:Connect(function(eliminatedName: string)
 	if not eliminatedName then return end
 	clearAllBillboards()
+	hidePlayerGrid()
 
 	showCard()
 	setSlidersVisible(false)
@@ -758,6 +773,7 @@ end)
 --------------------------------------------------------------
 GameOverEvt.OnClientEvent:Connect(function(winnerName: string)
 	clearAllBillboards()
+	hidePlayerGrid()
 	showCard()
 	setSlidersVisible(false)
 	colorDisplay.Visible = false
@@ -783,6 +799,7 @@ end)
 --------------------------------------------------------------
 LobbyTimerEvt.OnClientEvent:Connect(function(t: number)
 	clearAllBillboards()
+	hidePlayerGrid()
 	if not card.Visible then
 		showCard()
 	end
@@ -853,6 +870,7 @@ end)
 -- BILLBOARDS (live color above each player's head)
 --------------------------------------------------------------
 local activeBillboards: { [string]: BillboardGui } = {}
+local avatarCache: { [number]: string } = {}
 
 clearAllBillboards = function()
 	for name, billboard in pairs(activeBillboards) do
@@ -882,17 +900,37 @@ local function updatePlayerBillboard(playerName: string, h: number, s: number, v
 	if not billboard or not billboard.Parent then
 		billboard = Instance.new("BillboardGui")
 		billboard.Name = "ColorPreview"
-		billboard.Size = UDim2.new(0, 58, 0, 58)
-		billboard.StudsOffset = Vector3.new(0, 1.8, 0)
+		billboard.Size = UDim2.new(0, 132, 0, 68)
+		billboard.StudsOffset = Vector3.new(0, 2.4, 0)
 		billboard.AlwaysOnTop = true
 		billboard.Parent = head
 
+		local bg = Instance.new("Frame")
+		bg.Name = "BG"
+		bg.Size = UDim2.new(1, 0, 1, 0)
+		bg.BackgroundColor3 = Color3.fromRGB(12, 12, 18)
+		bg.BackgroundTransparency = 0.25
+		bg.BorderSizePixel = 0
+		bg.Parent = billboard
+		Instance.new("UICorner", bg).CornerRadius = UDim.new(0, 12)
+
+		local avatar = Instance.new("ImageLabel")
+		avatar.Name = "Avatar"
+		avatar.Size = UDim2.new(0, 58, 0, 58)
+		avatar.Position = UDim2.new(0, 5, 0.5, -29)
+		avatar.BackgroundTransparency = 1
+		avatar.Image = ""
+		avatar.Parent = bg
+		Instance.new("UICorner", avatar).CornerRadius = UDim.new(0, 8)
+
 		local colorBox = Instance.new("Frame")
 		colorBox.Name = "ColorBox"
-		colorBox.Size = UDim2.new(1, 0, 1, 0)
+		colorBox.Size = UDim2.new(0, 58, 0, 58)
+		colorBox.Position = UDim2.new(0, 68, 0.5, -29)
+		colorBox.BackgroundColor3 = Color3.fromHSV(h, s, v)
 		colorBox.BorderSizePixel = 0
-		colorBox.Parent = billboard
-		Instance.new("UICorner", colorBox).CornerRadius = UDim.new(0, 10)
+		colorBox.Parent = bg
+		Instance.new("UICorner", colorBox).CornerRadius = UDim.new(0, 8)
 
 		local stroke = Instance.new("UIStroke")
 		stroke.Color = Color3.fromRGB(255, 255, 255)
@@ -901,9 +939,33 @@ local function updatePlayerBillboard(playerName: string, h: number, s: number, v
 		stroke.Parent = colorBox
 
 		activeBillboards[playerName] = billboard
+
+		-- Fetch avatar thumbnail asynchronously, cache by UserId
+		local userId = targetPlayer.UserId
+		task.spawn(function()
+			local cachedUrl = avatarCache[userId]
+			if not cachedUrl then
+				local ok, url = pcall(
+					Players.GetUserThumbnailAsync, Players,
+					userId,
+					Enum.ThumbnailType.HeadShot,
+					Enum.ThumbnailSize.Size100x100
+				)
+				if ok then
+					avatarCache[userId] = url
+					cachedUrl = url
+				end
+			end
+			if cachedUrl and billboard.Parent then
+				local bg2 = billboard:FindFirstChild("BG") :: Frame
+				local av = bg2 and bg2:FindFirstChild("Avatar") :: ImageLabel
+				if av then av.Image = cachedUrl end
+			end
+		end)
 	end
 
-	local colorBox = billboard:FindFirstChild("ColorBox") :: Frame
+	local bg = billboard:FindFirstChild("BG") :: Frame
+	local colorBox = bg and bg:FindFirstChild("ColorBox") :: Frame
 	if colorBox then
 		colorBox.BackgroundColor3 = Color3.fromHSV(h, s, v)
 	end
@@ -914,4 +976,312 @@ end
 --------------------------------------------------------------
 BroadcastColorEvt.OnClientEvent:Connect(function(playerName: string, h: number, s: number, v: number)
 	updatePlayerBillboard(playerName, h, s, v)
+end)
+
+--------------------------------------------------------------
+-- COLORSCREEN PLAYER GRID (updates on slider release only)
+--------------------------------------------------------------
+local playerGridGui = Instance.new("SurfaceGui")
+playerGridGui.Name = "PlayerColorGrid"
+playerGridGui.Face = Enum.NormalId.Front
+playerGridGui.CanvasSize = Vector2.new(1024, 512)
+playerGridGui.ZOffset = 0.05
+playerGridGui.Enabled = false
+playerGridGui.Parent = colorScreenPart
+
+local gridContainer = Instance.new("Frame")
+gridContainer.Name = "GridContainer"
+gridContainer.Size = UDim2.new(1, 0, 1, 0)
+gridContainer.BackgroundTransparency = 1
+gridContainer.Parent = playerGridGui
+
+-- Top zone: featured (highest scorer) — centered, larger card
+local featuredSection = Instance.new("Frame")
+featuredSection.Name = "Featured"
+featuredSection.Size = UDim2.new(1, 0, 0, 240)
+featuredSection.Position = UDim2.new(0, 0, 0, 0)
+featuredSection.BackgroundTransparency = 1
+featuredSection.Parent = gridContainer
+
+-- Bottom zone: all other players in a smaller uniform grid
+local restSection = Instance.new("Frame")
+restSection.Name = "Rest"
+restSection.Size = UDim2.new(1, 0, 1, -240)
+restSection.Position = UDim2.new(0, 0, 0, 240)
+restSection.BackgroundTransparency = 1
+restSection.Parent = gridContainer
+
+local restLayout = Instance.new("UIGridLayout")
+restLayout.CellSize = UDim2.new(0, 110, 0, 172)
+restLayout.CellPadding = UDim2.new(0, 12, 0, 12)
+restLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+restLayout.VerticalAlignment = Enum.VerticalAlignment.Center
+restLayout.SortOrder = Enum.SortOrder.Name
+restLayout.Parent = restSection
+
+local restPadding = Instance.new("UIPadding")
+restPadding.PaddingTop = UDim.new(0, 10)
+restPadding.PaddingBottom = UDim.new(0, 10)
+restPadding.PaddingLeft = UDim.new(0, 10)
+restPadding.PaddingRight = UDim.new(0, 10)
+restPadding.Parent = restSection
+
+-- Sizes used when promoting/demoting cards
+local FEATURED_SIZE = UDim2.new(0, 168, 0, 228)
+local REST_CELL     = UDim2.new(0, 110, 0, 172) -- matches restLayout.CellSize
+
+local playerCards: { [string]: {
+	card: Frame,
+	colorFrame: Frame,
+	avatarLabel: ImageLabel,
+	scoreLabel: TextLabel,
+	timeLabel: TextLabel,
+	medalLabel: TextLabel,
+} } = {}
+
+-- Cards use scale-based internal layout so they look correct at both sizes
+local function createPlayerCard(playerName: string, displayName: string, userId: number)
+	local playerCard = Instance.new("Frame")
+	playerCard.Name = playerName
+	playerCard.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+	playerCard.BackgroundTransparency = 0.1
+	playerCard.BorderSizePixel = 0
+	playerCard.Parent = restSection   -- starts in the rest grid
+	Instance.new("UICorner", playerCard).CornerRadius = UDim.new(0, 12)
+
+	local avatarLabel = Instance.new("ImageLabel")
+	avatarLabel.Name = "Avatar"
+	avatarLabel.Size = UDim2.new(1, -12, 0.51, -8)
+	avatarLabel.Position = UDim2.new(0, 6, 0, 6)
+	avatarLabel.BackgroundTransparency = 1
+	avatarLabel.Image = ""
+	avatarLabel.Parent = playerCard
+	Instance.new("UICorner", avatarLabel).CornerRadius = UDim.new(0, 8)
+
+	local colorFrame = Instance.new("Frame")
+	colorFrame.Name = "ColorBox"
+	colorFrame.Size = UDim2.new(1, -12, 0.17, 0)
+	colorFrame.Position = UDim2.new(0, 6, 0.53, 0)
+	colorFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
+	colorFrame.BorderSizePixel = 0
+	colorFrame.Parent = playerCard
+	Instance.new("UICorner", colorFrame).CornerRadius = UDim.new(0, 6)
+
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Size = UDim2.new(1, -4, 0.12, 0)
+	nameLabel.Position = UDim2.new(0, 2, 0.71, 0)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = displayName
+	nameLabel.TextColor3 = Color3.fromRGB(200, 200, 220)
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextScaled = true
+	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+	nameLabel.TextXAlignment = Enum.TextXAlignment.Center
+	nameLabel.Parent = playerCard
+
+	local cardScoreLabel = Instance.new("TextLabel")
+	cardScoreLabel.Size = UDim2.new(1, -4, 0.11, 0)
+	cardScoreLabel.Position = UDim2.new(0, 2, 0.83, 0)
+	cardScoreLabel.BackgroundTransparency = 1
+	cardScoreLabel.Text = ""
+	cardScoreLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+	cardScoreLabel.Font = Enum.Font.GothamBold
+	cardScoreLabel.TextScaled = true
+	cardScoreLabel.TextXAlignment = Enum.TextXAlignment.Center
+	cardScoreLabel.Visible = false
+	cardScoreLabel.Parent = playerCard
+
+	local cardTimeLabel = Instance.new("TextLabel")
+	cardTimeLabel.Size = UDim2.new(1, -4, 0.09, 0)
+	cardTimeLabel.Position = UDim2.new(0, 2, 0.92, 0)
+	cardTimeLabel.BackgroundTransparency = 1
+	cardTimeLabel.Text = ""
+	cardTimeLabel.TextColor3 = Color3.fromRGB(150, 150, 180)
+	cardTimeLabel.Font = Enum.Font.GothamMedium
+	cardTimeLabel.TextScaled = true
+	cardTimeLabel.TextXAlignment = Enum.TextXAlignment.Center
+	cardTimeLabel.Visible = false
+	cardTimeLabel.Parent = playerCard
+
+	-- Gold medal overlaid in top-right corner of the card
+	local medalLabel = Instance.new("TextLabel")
+	medalLabel.Name = "Medal"
+	medalLabel.Size = UDim2.new(0.35, 0, 0.35, 0)
+	medalLabel.Position = UDim2.new(0.65, 0, -0.12, 0)
+	medalLabel.BackgroundTransparency = 1
+	medalLabel.Text = "🥇"
+	medalLabel.TextScaled = true
+	medalLabel.Font = Enum.Font.GothamBold
+	medalLabel.ZIndex = 10
+	medalLabel.Visible = false
+	medalLabel.Parent = playerCard
+
+	playerCards[playerName] = {
+		card = playerCard,
+		colorFrame = colorFrame,
+		avatarLabel = avatarLabel,
+		scoreLabel = cardScoreLabel,
+		timeLabel = cardTimeLabel,
+		medalLabel = medalLabel,
+	}
+
+	-- Fetch avatar async, share cache with BillboardGui section
+	task.spawn(function()
+		local cached = avatarCache[userId]
+		if not cached then
+			local ok, url = pcall(
+				Players.GetUserThumbnailAsync, Players,
+				userId,
+				Enum.ThumbnailType.HeadShot,
+				Enum.ThumbnailSize.Size100x100
+			)
+			if ok then
+				avatarCache[userId] = url
+				cached = url
+			end
+		end
+		if cached and playerCard.Parent then
+			avatarLabel.Image = cached
+		end
+	end)
+end
+
+showPlayerGrid = function()
+	for _, child in featuredSection:GetChildren() do
+		if child:IsA("Frame") then child:Destroy() end
+	end
+	for _, child in restSection:GetChildren() do
+		if child:IsA("Frame") then child:Destroy() end
+	end
+	playerCards = {}
+
+	for _, p in ipairs(Players:GetPlayers()) do
+		createPlayerCard(p.Name, p.DisplayName, p.UserId)
+	end
+
+	playerGridGui.Enabled = true
+end
+
+hidePlayerGrid = function()
+	playerGridGui.Enabled = false
+end
+
+--------------------------------------------------------------
+-- EVENT: Final Color (slider released — update ColorScreen card)
+--------------------------------------------------------------
+FinalColorEvt.OnClientEvent:Connect(function(playerName: string, h: number, s: number, v: number)
+	local entry = playerCards[playerName]
+	if entry then
+		entry.colorFrame.BackgroundColor3 = Color3.fromHSV(h, s, v)
+	end
+end)
+
+--------------------------------------------------------------
+-- EVENT: Round Scores (show score + time; promote top scorer)
+--------------------------------------------------------------
+RoundScoresEvt.OnClientEvent:Connect(function(allScores: { { name: string, score: number, time: number } })
+	-- Rank by time for medal colors
+	local sorted = table.clone(allScores)
+	table.sort(sorted, function(a, b) return a.time < b.time end)
+	local timeRank: { [string]: number } = {}
+	for rank, data in ipairs(sorted) do
+		timeRank[data.name] = rank
+	end
+
+	local medalColors = {
+		[1] = Color3.fromRGB(255, 215,  50),
+		[2] = Color3.fromRGB(192, 192, 192),
+		[3] = Color3.fromRGB(205, 127,  50),
+	}
+
+	-- Find the highest scorer
+	local topName = ""
+	local topScore = -1
+	for _, data in ipairs(allScores) do
+		if data.score > topScore then
+			topScore = data.score
+			topName = data.name
+		end
+	end
+
+	-- Populate all cards
+	for _, data in ipairs(allScores) do
+		local entry = playerCards[data.name]
+		if not entry then continue end
+
+		entry.scoreLabel.Text = string.format("%.2f / 10", data.score)
+		entry.timeLabel.Text = string.format("%.1fs", data.time)
+
+		if data.score >= 9 then
+			entry.scoreLabel.TextColor3 = Color3.fromRGB(100, 255, 140)
+		elseif data.score >= 7 then
+			entry.scoreLabel.TextColor3 = Color3.fromRGB(80, 200, 255)
+		elseif data.score >= 5 then
+			entry.scoreLabel.TextColor3 = Color3.fromRGB(255, 210, 50)
+		else
+			entry.scoreLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+		end
+
+		entry.timeLabel.TextColor3 = medalColors[timeRank[data.name]]
+			or Color3.fromRGB(150, 150, 180)
+
+		entry.scoreLabel.Visible = true
+		entry.timeLabel.Visible = true
+	end
+
+	-- Hide all medals first, then show on winner
+	for _, entry in pairs(playerCards) do
+		entry.medalLabel.Visible = false
+		entry.medalLabel.TextTransparency = 0
+		entry.medalLabel.Rotation = 0
+	end
+
+	-- Promote top scorer to the featured zone
+	local winner = playerCards[topName]
+	if winner then
+		winner.card.Size = FEATURED_SIZE
+		winner.card.AnchorPoint = Vector2.new(0.5, 0.5)
+		winner.card.Position = UDim2.new(0.5, 0, 0.5, 0)
+		winner.card.Parent = featuredSection
+
+		-- Show medal with a pop-in then looping pulse
+		winner.medalLabel.Visible = true
+		winner.medalLabel.TextTransparency = 1
+		winner.medalLabel.Rotation = -20
+
+		local popIn = TweenService:Create(winner.medalLabel, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			TextTransparency = 0,
+			Rotation = 8,
+		})
+		popIn:Play()
+		popIn.Completed:Connect(function()
+			-- Looping rock/pulse: tilt left then right
+			local rockLeft: () -> ()
+			local rockRight: () -> ()
+			rockLeft = function()
+				if not winner.medalLabel.Visible then return end
+				TweenService:Create(winner.medalLabel, TweenInfo.new(0.45, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+					Rotation = -10,
+				}):Play()
+				task.delay(0.45, rockRight)
+			end
+			rockRight = function()
+				if not winner.medalLabel.Visible then return end
+				TweenService:Create(winner.medalLabel, TweenInfo.new(0.45, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+					Rotation = 10,
+				}):Play()
+				task.delay(0.45, rockLeft)
+			end
+			rockLeft()
+		end)
+	end
+
+	-- Ensure everyone else is in the rest grid at the normal cell size
+	for name, entry in pairs(playerCards) do
+		if name ~= topName then
+			entry.card.Size = REST_CELL
+			entry.card.AnchorPoint = Vector2.new(0, 0)
+			entry.card.Parent = restSection
+		end
+	end
 end)

@@ -34,7 +34,12 @@ local WaterLevel       = makeRemote("WaterLevel")
 local LobbyTimer       = makeRemote("LobbyTimer")
 local DebugEliminate   = makeRemote("DebugEliminate")
 local BroadcastColor   = makeRemote("BroadcastColor")
+<<<<<<< HEAD
 local SkipLobby        = makeRemote("SkipLobby")
+=======
+local FinalColor       = makeRemote("FinalColor")
+local RoundScores      = makeRemote("RoundScores")
+>>>>>>> 01c44de31e7a4cf7f44b3fbba3dcc43384d99019
 
 --------------------------------------------------------------
 -- ARENA REFERENCES (built in Studio — see Phase 4)
@@ -163,11 +168,14 @@ local function playRound(roundNum: number, alivePlayers: { Player }): number
 
 	-- ── PHASE 2: GUESSING ──
 	local guesses: { [Player]: { h: number, s: number, v: number } } = {}
+	local submitTimes: { [Player]: number } = {}
+	local guessStartTime = 0
 
 	local conn = SubmitGuess.OnServerEvent:Connect(function(player, h, s, v)
 		if typeof(h) == "number" and typeof(s) == "number" and typeof(v) == "number" then
 			if not guesses[player] then
 				guesses[player] = { h = h, s = s, v = v }
+				submitTimes[player] = math.clamp(tick() - guessStartTime, 0, GameConfig.GUESS_TIME)
 			end
 		end
 	end)
@@ -178,6 +186,7 @@ local function playRound(roundNum: number, alivePlayers: { Player }): number
 
 	-- Wait for all guesses or timeout
 	local startTime = tick()
+	guessStartTime = startTime
 	while tick() - startTime < GameConfig.GUESS_TIME do
 		local allIn = true
 		for _, player in ipairs(alivePlayers) do
@@ -192,14 +201,21 @@ local function playRound(roundNum: number, alivePlayers: { Player }): number
 
 	conn:Disconnect()
 
+<<<<<<< HEAD
 	-- ── PHASE 3a: SHOW SCORES ──
 	local scores: { [Player]: number } = {}
+=======
+	-- ── PHASE 3: SCORE + RAISE PILLARS ──
+	local allScores: { { name: string, score: number, time: number } } = {}
+
+>>>>>>> 01c44de31e7a4cf7f44b3fbba3dcc43384d99019
 	for _, player in ipairs(alivePlayers) do
 		local guess = guesses[player]
 		local score = 0
 		if guess then
 			score = calculateScore(tH, tS, tV, guess.h, guess.s, guess.v)
 		end
+<<<<<<< HEAD
 		scores[player] = score
 		RoundResult:FireClient(player, score, tH, tS, tV)
 	end
@@ -213,6 +229,18 @@ local function playRound(roundNum: number, alivePlayers: { Player }): number
 	end
 
 	task.wait(2)
+=======
+
+		local timeTaken = math.floor((submitTimes[player] or GameConfig.GUESS_TIME) * 10 + 0.5) / 10
+		table.insert(allScores, { name = player.Name, score = score, time = timeTaken })
+		PillarManager.RaisePillar(player, score)
+		RoundResult:FireClient(player, score, tH, tS, tV)
+	end
+
+	RoundScores:FireAllClients(allScores)
+
+	task.wait(3)
+>>>>>>> 01c44de31e7a4cf7f44b3fbba3dcc43384d99019
 
 	-- ── PHASE 4: RAISE WATER ──
 	local newWaterY = GameConfig.WATER_START_Y
@@ -336,6 +364,15 @@ end)
 --------------------------------------------------------------
 BroadcastColor.OnServerEvent:Connect(function(player: Player, h: number, s: number, v: number)
 	BroadcastColor:FireAllClients(player.Name, h, s, v)
+end)
+
+--------------------------------------------------------------
+-- FINAL COLOR BROADCAST (on slider release — for ColorScreen display)
+--------------------------------------------------------------
+FinalColor.OnServerEvent:Connect(function(player: Player, h: number, s: number, v: number)
+	if typeof(h) == "number" and typeof(s) == "number" and typeof(v) == "number" then
+		FinalColor:FireAllClients(player.Name, h, s, v)
+	end
 end)
 
 runGame()
