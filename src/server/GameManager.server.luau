@@ -34,6 +34,7 @@ local WaterLevel       = makeRemote("WaterLevel")
 local LobbyTimer       = makeRemote("LobbyTimer")
 local DebugEliminate   = makeRemote("DebugEliminate")
 local BroadcastColor   = makeRemote("BroadcastColor")
+local FinalColor       = makeRemote("FinalColor")
 
 --------------------------------------------------------------
 -- ARENA REFERENCES (built in Studio — see Phase 4)
@@ -317,6 +318,15 @@ end)
 --------------------------------------------------------------
 BroadcastColor.OnServerEvent:Connect(function(player: Player, h: number, s: number, v: number)
 	BroadcastColor:FireAllClients(player.Name, h, s, v)
+end)
+
+--------------------------------------------------------------
+-- FINAL COLOR BROADCAST (on slider release — for ColorScreen display)
+--------------------------------------------------------------
+FinalColor.OnServerEvent:Connect(function(player: Player, h: number, s: number, v: number)
+	if typeof(h) == "number" and typeof(s) == "number" and typeof(v) == "number" then
+		FinalColor:FireAllClients(player.Name, h, s, v)
+	end
 end)
 
 runGame()
