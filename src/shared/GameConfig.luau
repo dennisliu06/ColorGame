@@ -10,7 +10,8 @@ GameConfig.MEMORIZE_TIME = 5
 GameConfig.GUESS_TIME = 15
 
 GameConfig.WATER_START_Y = -10
-GameConfig.WATER_RISE_PER_ROUND = 14
+GameConfig.WATER_RISE_PER_ROUND = 5   -- base studs added each round
+GameConfig.WATER_ACCEL_FACTOR = 1.0   -- extra studs added per round² (quadratic acceleration)
 
 GameConfig.BASE_PILLAR_HEIGHT = 40
 GameConfig.PILLAR_WIDTH = 8
