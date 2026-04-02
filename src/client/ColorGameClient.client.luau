@@ -360,22 +360,22 @@ end
 --------------------------------------------------------------
 -- COLOR PREVIEW
 --------------------------------------------------------------
+local lastBroadcastTime = 0
+
 local function updatePlayerColor()
 	playerColorDisplay.BackgroundColor3 = Color3.fromHSV(
 		sliderValues.hue % 1,
 		math.clamp(sliderValues.sat, 0, 1),
 		math.clamp(sliderValues.bri, 0, 1)
 	)
-	if isGuessingPhase then
-		local now = tick()
-		if now - lastBroadcastTime >= 0.1 then
-			lastBroadcastTime = now
-			BroadcastColorEvt:FireServer(
-				sliderValues.hue % 1,
-				math.clamp(sliderValues.sat, 0, 1),
-				math.clamp(sliderValues.bri, 0, 1)
-			)
-		end
+	local now = tick()
+	if now - lastBroadcastTime >= 0.1 then
+		lastBroadcastTime = now
+		BroadcastColorEvt:FireServer(
+			sliderValues.hue % 1,
+			math.clamp(sliderValues.sat, 0, 1),
+			math.clamp(sliderValues.bri, 0, 1)
+		)
 	end
 end
 
@@ -471,8 +471,6 @@ end
 -- SUBMIT
 --------------------------------------------------------------
 local hasSubmitted = false
-local isGuessingPhase = false
-local lastBroadcastTime = 0
 
 -- forward-declared; assigned in the BILLBOARDS section below
 local clearAllBillboards: () -> ()
@@ -525,7 +523,6 @@ end)
 -- EVENT: Start Guessing
 --------------------------------------------------------------
 StartGuessing.OnClientEvent:Connect(function(guessTime: number)
-	isGuessingPhase = true
 	clearAllBillboards()
 
 	instructionLabel.Text = "RECREATE THE COLOR!"
@@ -556,7 +553,6 @@ end)
 -- EVENT: Round Result
 --------------------------------------------------------------
 RoundResult.OnClientEvent:Connect(function(score: number, tH: number, tS: number, tV: number)
-	isGuessingPhase = false
 	clearAllBillboards()
 	setSlidersVisible(false)
 
@@ -611,7 +607,6 @@ end)
 --------------------------------------------------------------
 PlayerElim.OnClientEvent:Connect(function(eliminatedName: string)
 	if not eliminatedName then return end
-	isGuessingPhase = false
 	clearAllBillboards()
 
 	showCard()
@@ -640,7 +635,6 @@ end)
 -- EVENT: Game Over
 --------------------------------------------------------------
 GameOverEvt.OnClientEvent:Connect(function(winnerName: string)
-	isGuessingPhase = false
 	clearAllBillboards()
 	showCard()
 	setSlidersVisible(false)
@@ -666,7 +660,6 @@ end)
 -- EVENT: Lobby Timer
 --------------------------------------------------------------
 LobbyTimerEvt.OnClientEvent:Connect(function(t: number)
-	isGuessingPhase = false
 	clearAllBillboards()
 	if not card.Visible then
 		showCard()
@@ -743,7 +736,7 @@ local function updatePlayerBillboard(playerName: string, h: number, s: number, v
 		billboard.Name = "ColorPreview"
 		billboard.Size = UDim2.new(0, 58, 0, 58)
 		billboard.StudsOffset = Vector3.new(0, 1.8, 0)
-		billboard.AlwaysOnTop = false
+		billboard.AlwaysOnTop = true
 		billboard.Parent = head
 
 		local colorBox = Instance.new("Frame")
@@ -772,7 +765,5 @@ end
 -- EVENT: Broadcast Color (other players' live guess)
 --------------------------------------------------------------
 BroadcastColorEvt.OnClientEvent:Connect(function(playerName: string, h: number, s: number, v: number)
-	if isGuessingPhase then
-		updatePlayerBillboard(playerName, h, s, v)
-	end
+	updatePlayerBillboard(playerName, h, s, v)
 end)
