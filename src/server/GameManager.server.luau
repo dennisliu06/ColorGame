@@ -32,6 +32,7 @@ local PlayerEliminated = makeRemote("PlayerEliminated")
 local GameOverEvent    = makeRemote("GameOver")
 local WaterLevel       = makeRemote("WaterLevel")
 local LobbyTimer       = makeRemote("LobbyTimer")
+local DebugEliminate   = makeRemote("DebugEliminate")
 
 --------------------------------------------------------------
 -- ARENA REFERENCES (built in Studio — see Phase 4)
@@ -288,5 +289,26 @@ local function runGame()
 		task.wait(5)
 	end
 end
+
+--------------------------------------------------------------
+-- DEBUG: Self-Eliminate (testing only)
+--------------------------------------------------------------
+DebugEliminate.OnServerEvent:Connect(function(player: Player)
+	if not table.find(PillarManager.GetActivePlayers(), player) then return end
+	PillarManager.RemovePillar(player)
+	for _, p in ipairs(Players:GetPlayers()) do
+		PlayerEliminated:FireClient(p, player.DisplayName)
+	end
+	local char = player.Character
+	if char then
+		local hrp = char:FindFirstChild("HumanoidRootPart") :: BasePart
+		if hrp then hrp.CFrame = CFrame.new(0, 120, -80) end
+		local hum = char:FindFirstChildOfClass("Humanoid") :: Humanoid
+		if hum then
+			hum.WalkSpeed = 16
+			hum.JumpPower = 50
+		end
+	end
+end)
 
 runGame()

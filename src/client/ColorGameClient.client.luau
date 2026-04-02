@@ -18,6 +18,7 @@ local RoundResult     = Events:WaitForChild("RoundResult") :: RemoteEvent
 local PlayerElim      = Events:WaitForChild("PlayerEliminated") :: RemoteEvent
 local GameOverEvt     = Events:WaitForChild("GameOver") :: RemoteEvent
 local LobbyTimerEvt   = Events:WaitForChild("LobbyTimer") :: RemoteEvent
+local DebugElimEvt    = Events:WaitForChild("DebugEliminate") :: RemoteEvent
 
 --------------------------------------------------------------
 -- BUILD THE ENTIRE GUI FROM CODE (no Studio GUI needed)
@@ -33,7 +34,8 @@ local card = Instance.new("Frame")
 card.Name = "Card"
 card.Size = UDim2.new(0, 500, 0, 380)
 card.Position = UDim2.new(0.5, -250, 0.5, -190)
-card.BackgroundColor3 = Color3.fromRGB(160, 60, 200)
+card.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+card.BackgroundTransparency = 0.25
 card.BorderSizePixel = 0
 card.Visible = false
 card.Parent = screenGui
@@ -43,8 +45,8 @@ cardCorner.CornerRadius = UDim.new(0, 20)
 cardCorner.Parent = card
 
 local cardStroke = Instance.new("UIStroke")
-cardStroke.Color = Color3.fromRGB(130, 40, 170)
-cardStroke.Thickness = 3
+cardStroke.Color = Color3.fromRGB(60, 60, 70)
+cardStroke.Thickness = 1
 cardStroke.Parent = card
 
 -- Round label (top left)
@@ -52,7 +54,7 @@ local roundLabel = Instance.new("TextLabel")
 roundLabel.Name = "RoundLabel"
 roundLabel.Size = UDim2.new(0, 60, 0, 30)
 roundLabel.Position = UDim2.new(0, 20, 0, 15)
-roundLabel.BackgroundColor3 = Color3.fromRGB(140, 50, 180)
+roundLabel.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
 roundLabel.Text = "1/10"
 roundLabel.TextColor3 = Color3.new(1, 1, 1)
 roundLabel.TextSize = 16
@@ -446,12 +448,12 @@ PlayerElim.OnClientEvent:Connect(function(eliminatedName: string)
 
 		if eliminatedName == player.DisplayName then
 			instructionLabel.Text = "💀 You were eliminated!"
-			card.BackgroundColor3 = Color3.fromRGB(80, 30, 30)
+			card.BackgroundColor3 = Color3.fromRGB(60, 15, 15)
 		end
 
 		task.wait(2.5)
 		card.Visible = false
-		card.BackgroundColor3 = Color3.fromRGB(160, 60, 200) -- reset color
+		card.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 	end
 end)
 
@@ -464,7 +466,7 @@ GameOverEvt.OnClientEvent:Connect(function(winnerName: string)
 	colorDisplay.Visible = false
 	playerColorDisplay.Visible = false
 
-	card.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+	card.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 	instructionLabel.Text = "GAME OVER"
 	scoreLabel.Text = "🏆 " .. winnerName .. " WINS!"
 	scoreLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
@@ -476,7 +478,7 @@ end)
 --------------------------------------------------------------
 LobbyTimerEvt.OnClientEvent:Connect(function(t: number)
 	card.Visible = true
-	card.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+	card.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
 	setSlidersVisible(false)
 	colorDisplay.Visible = false
 	playerColorDisplay.Visible = false
@@ -486,7 +488,30 @@ LobbyTimerEvt.OnClientEvent:Connect(function(t: number)
 
 	if t <= 1 then
 		task.wait(1.5)
-		card.BackgroundColor3 = Color3.fromRGB(160, 60, 200)
+		card.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+		card.BackgroundTransparency = 0.25
 		card.Visible = false
 	end
+end)
+
+--------------------------------------------------------------
+-- DEBUG: Self-Eliminate Button (testing only)
+--------------------------------------------------------------
+local debugBtn = Instance.new("TextButton")
+debugBtn.Name = "DebugElimBtn"
+debugBtn.Size = UDim2.new(0, 140, 0, 32)
+debugBtn.Position = UDim2.new(1, -150, 0, 10)
+debugBtn.BackgroundColor3 = Color3.fromRGB(180, 30, 30)
+debugBtn.BackgroundTransparency = 0.2
+debugBtn.Text = "☠ Eliminate Me"
+debugBtn.TextColor3 = Color3.new(1, 1, 1)
+debugBtn.TextSize = 14
+debugBtn.Font = Enum.Font.GothamBold
+debugBtn.BorderSizePixel = 0
+debugBtn.ZIndex = 10
+debugBtn.Parent = screenGui
+Instance.new("UICorner", debugBtn).CornerRadius = UDim.new(0, 8)
+
+debugBtn.MouseButton1Click:Connect(function()
+	DebugElimEvt:FireServer()
 end)
