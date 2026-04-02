@@ -34,6 +34,7 @@ local WaterLevel       = makeRemote("WaterLevel")
 local LobbyTimer       = makeRemote("LobbyTimer")
 local DebugEliminate   = makeRemote("DebugEliminate")
 local BroadcastColor   = makeRemote("BroadcastColor")
+local SkipLobby        = makeRemote("SkipLobby")
 local FinalColor       = makeRemote("FinalColor")
 local RoundScores      = makeRemote("RoundScores")
 
@@ -197,26 +198,33 @@ local function playRound(roundNum: number, alivePlayers: { Player }): number
 
 	conn:Disconnect()
 
-	-- ── PHASE 3: SCORE + RAISE PILLARS ──
+	-- ── PHASE 3a: SHOW SCORES ──
+	local scores: { [Player]: number } = {}
 	local allScores: { { name: string, score: number, time: number } } = {}
 
 	for _, player in ipairs(alivePlayers) do
 		local guess = guesses[player]
 		local score = 0
-
 		if guess then
 			score = calculateScore(tH, tS, tV, guess.h, guess.s, guess.v)
 		end
-
+		scores[player] = score
 		local timeTaken = math.floor((submitTimes[player] or GameConfig.GUESS_TIME) * 10 + 0.5) / 10
 		table.insert(allScores, { name = player.Name, score = score, time = timeTaken })
-		PillarManager.RaisePillar(player, score)
 		RoundResult:FireClient(player, score, tH, tS, tV)
 	end
 
 	RoundScores:FireAllClients(allScores)
 
-	task.wait(3)
+	-- Let players read their score before anything moves
+	task.wait(GameConfig.SCORE_DISPLAY_DELAY)
+
+	-- ── PHASE 3b: RAISE PILLARS ──
+	for _, player in ipairs(alivePlayers) do
+		PillarManager.RaisePillar(player, scores[player])
+	end
+
+	task.wait(2)
 
 	-- ── PHASE 4: RAISE WATER ──
 	local newWaterY = GameConfig.WATER_START_Y
@@ -254,7 +262,15 @@ local function runGame()
 		until #Players:GetPlayers() >= GameConfig.MIN_PLAYERS
 
 		-- Lobby countdown
+		local lobbySkipped = false
+		local skipConn = SkipLobby.OnServerEvent:Connect(function(player: Player)
+			if player.UserId == game.CreatorId then
+				lobbySkipped = true
+			end
+		end)
+
 		for t = GameConfig.LOBBY_WAIT, 1, -1 do
+			if lobbySkipped then break end
 			if screenTimer then screenTimer.Text = tostring(t) end
 			if screenRound then screenRound.Text = "Game starting soon..." end
 			for _, p in ipairs(Players:GetPlayers()) do
@@ -262,6 +278,7 @@ local function runGame()
 			end
 			task.wait(1)
 		end
+		skipConn:Disconnect()
 		if screenTimer then screenTimer.Text = "" end
 
 		-- ── SPAWN PILLARS ──
