@@ -971,13 +971,13 @@ gridPadding.Parent = gridContainer
 local playerCards: { [string]: { colorFrame: Frame, avatarLabel: ImageLabel } } = {}
 
 local function createPlayerCard(playerName: string, displayName: string, userId: number)
-	local card = Instance.new("Frame")
-	card.Name = playerName  -- keyed by Name (unique) for sorting
-	card.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-	card.BackgroundTransparency = 0.1
-	card.BorderSizePixel = 0
-	card.Parent = gridContainer
-	Instance.new("UICorner", card).CornerRadius = UDim.new(0, 12)
+	local playerCard = Instance.new("Frame")
+	playerCard.Name = playerName  -- keyed by Name (unique) for sorting
+	playerCard.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
+	playerCard.BackgroundTransparency = 0.1
+	playerCard.BorderSizePixel = 0
+	playerCard.Parent = gridContainer
+	Instance.new("UICorner", playerCard).CornerRadius = UDim.new(0, 12)
 
 	local avatarLabel = Instance.new("ImageLabel")
 	avatarLabel.Name = "Avatar"
@@ -985,7 +985,7 @@ local function createPlayerCard(playerName: string, displayName: string, userId:
 	avatarLabel.Position = UDim2.new(0, 8, 0, 8)
 	avatarLabel.BackgroundTransparency = 1
 	avatarLabel.Image = ""
-	avatarLabel.Parent = card
+	avatarLabel.Parent = playerCard
 	Instance.new("UICorner", avatarLabel).CornerRadius = UDim.new(0, 8)
 
 	local colorFrame = Instance.new("Frame")
@@ -994,7 +994,7 @@ local function createPlayerCard(playerName: string, displayName: string, userId:
 	colorFrame.Position = UDim2.new(0, 8, 0, 114)
 	colorFrame.BackgroundColor3 = Color3.fromRGB(50, 50, 70)
 	colorFrame.BorderSizePixel = 0
-	colorFrame.Parent = card
+	colorFrame.Parent = playerCard
 	Instance.new("UICorner", colorFrame).CornerRadius = UDim.new(0, 8)
 
 	local nameLabel = Instance.new("TextLabel")
@@ -1007,7 +1007,7 @@ local function createPlayerCard(playerName: string, displayName: string, userId:
 	nameLabel.Font = Enum.Font.GothamBold
 	nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
 	nameLabel.TextXAlignment = Enum.TextXAlignment.Center
-	nameLabel.Parent = card
+	nameLabel.Parent = playerCard
 
 	playerCards[playerName] = { colorFrame = colorFrame, avatarLabel = avatarLabel }
 
@@ -1026,7 +1026,7 @@ local function createPlayerCard(playerName: string, displayName: string, userId:
 				cached = url
 			end
 		end
-		if cached and card.Parent then
+		if cached and playerCard.Parent then
 			avatarLabel.Image = cached
 		end
 	end)
@@ -1039,11 +1039,9 @@ showPlayerGrid = function()
 	end
 	playerCards = {}
 
-	-- Create a card for every other connected player
+	-- Create a card for every connected player
 	for _, p in ipairs(Players:GetPlayers()) do
-		if p ~= player then
-			createPlayerCard(p.Name, p.DisplayName, p.UserId)
-		end
+		createPlayerCard(p.Name, p.DisplayName, p.UserId)
 	end
 
 	playerGridGui.Enabled = true
@@ -1057,8 +1055,8 @@ end
 -- EVENT: Final Color (slider released — update ColorScreen card)
 --------------------------------------------------------------
 FinalColorEvt.OnClientEvent:Connect(function(playerName: string, h: number, s: number, v: number)
-	local card = playerCards[playerName]
-	if card then
-		card.colorFrame.BackgroundColor3 = Color3.fromHSV(h, s, v)
+	local entry = playerCards[playerName]
+	if entry then
+		entry.colorFrame.BackgroundColor3 = Color3.fromHSV(h, s, v)
 	end
 end)
