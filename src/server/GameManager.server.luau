@@ -34,12 +34,9 @@ local WaterLevel       = makeRemote("WaterLevel")
 local LobbyTimer       = makeRemote("LobbyTimer")
 local DebugEliminate   = makeRemote("DebugEliminate")
 local BroadcastColor   = makeRemote("BroadcastColor")
-<<<<<<< HEAD
 local SkipLobby        = makeRemote("SkipLobby")
-=======
 local FinalColor       = makeRemote("FinalColor")
 local RoundScores      = makeRemote("RoundScores")
->>>>>>> 01c44de31e7a4cf7f44b3fbba3dcc43384d99019
 
 --------------------------------------------------------------
 -- ARENA REFERENCES (built in Studio — see Phase 4)
@@ -201,24 +198,23 @@ local function playRound(roundNum: number, alivePlayers: { Player }): number
 
 	conn:Disconnect()
 
-<<<<<<< HEAD
 	-- ── PHASE 3a: SHOW SCORES ──
 	local scores: { [Player]: number } = {}
-=======
-	-- ── PHASE 3: SCORE + RAISE PILLARS ──
 	local allScores: { { name: string, score: number, time: number } } = {}
 
->>>>>>> 01c44de31e7a4cf7f44b3fbba3dcc43384d99019
 	for _, player in ipairs(alivePlayers) do
 		local guess = guesses[player]
 		local score = 0
 		if guess then
 			score = calculateScore(tH, tS, tV, guess.h, guess.s, guess.v)
 		end
-<<<<<<< HEAD
 		scores[player] = score
+		local timeTaken = math.floor((submitTimes[player] or GameConfig.GUESS_TIME) * 10 + 0.5) / 10
+		table.insert(allScores, { name = player.Name, score = score, time = timeTaken })
 		RoundResult:FireClient(player, score, tH, tS, tV)
 	end
+
+	RoundScores:FireAllClients(allScores)
 
 	-- Let players read their score before anything moves
 	task.wait(GameConfig.SCORE_DISPLAY_DELAY)
@@ -229,18 +225,6 @@ local function playRound(roundNum: number, alivePlayers: { Player }): number
 	end
 
 	task.wait(2)
-=======
-
-		local timeTaken = math.floor((submitTimes[player] or GameConfig.GUESS_TIME) * 10 + 0.5) / 10
-		table.insert(allScores, { name = player.Name, score = score, time = timeTaken })
-		PillarManager.RaisePillar(player, score)
-		RoundResult:FireClient(player, score, tH, tS, tV)
-	end
-
-	RoundScores:FireAllClients(allScores)
-
-	task.wait(3)
->>>>>>> 01c44de31e7a4cf7f44b3fbba3dcc43384d99019
 
 	-- ── PHASE 4: RAISE WATER ──
 	local newWaterY = GameConfig.WATER_START_Y
