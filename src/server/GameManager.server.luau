@@ -207,7 +207,9 @@ local function playRound(roundNum: number, alivePlayers: { Player }): number
 	task.wait(3)
 
 	-- ── PHASE 4: RAISE WATER ──
-	local newWaterY = GameConfig.WATER_START_Y + (roundNum * GameConfig.WATER_RISE_PER_ROUND)
+	local newWaterY = GameConfig.WATER_START_Y
+		+ (roundNum * GameConfig.WATER_RISE_PER_ROUND)
+		+ (roundNum * roundNum * GameConfig.WATER_ACCEL_FACTOR)
 	setWaterLevel(newWaterY, 3)
 
 	task.wait(1.5)
