@@ -998,6 +998,7 @@ local playerCards: { [string]: {
 	avatarLabel: ImageLabel,
 	scoreLabel: TextLabel,
 	timeLabel: TextLabel,
+	medalLabel: TextLabel,
 } } = {}
 
 -- Cards use scale-based internal layout so they look correct at both sizes
@@ -1064,12 +1065,26 @@ local function createPlayerCard(playerName: string, displayName: string, userId:
 	cardTimeLabel.Visible = false
 	cardTimeLabel.Parent = playerCard
 
+	-- Gold medal overlaid in top-right corner of the card
+	local medalLabel = Instance.new("TextLabel")
+	medalLabel.Name = "Medal"
+	medalLabel.Size = UDim2.new(0.35, 0, 0.35, 0)
+	medalLabel.Position = UDim2.new(0.65, 0, -0.12, 0)
+	medalLabel.BackgroundTransparency = 1
+	medalLabel.Text = "🥇"
+	medalLabel.TextScaled = true
+	medalLabel.Font = Enum.Font.GothamBold
+	medalLabel.ZIndex = 10
+	medalLabel.Visible = false
+	medalLabel.Parent = playerCard
+
 	playerCards[playerName] = {
 		card = playerCard,
 		colorFrame = colorFrame,
 		avatarLabel = avatarLabel,
 		scoreLabel = cardScoreLabel,
 		timeLabel = cardTimeLabel,
+		medalLabel = medalLabel,
 	}
 
 	-- Fetch avatar async, share cache with BillboardGui section
@@ -1176,6 +1191,13 @@ RoundScoresEvt.OnClientEvent:Connect(function(allScores: { { name: string, score
 		entry.timeLabel.Visible = true
 	end
 
+	-- Hide all medals first, then show on winner
+	for _, entry in pairs(playerCards) do
+		entry.medalLabel.Visible = false
+		entry.medalLabel.TextTransparency = 0
+		entry.medalLabel.Rotation = 0
+	end
+
 	-- Promote top scorer to the featured zone
 	local winner = playerCards[topName]
 	if winner then
@@ -1183,6 +1205,37 @@ RoundScoresEvt.OnClientEvent:Connect(function(allScores: { { name: string, score
 		winner.card.AnchorPoint = Vector2.new(0.5, 0.5)
 		winner.card.Position = UDim2.new(0.5, 0, 0.5, 0)
 		winner.card.Parent = featuredSection
+
+		-- Show medal with a pop-in then looping pulse
+		winner.medalLabel.Visible = true
+		winner.medalLabel.TextTransparency = 1
+		winner.medalLabel.Rotation = -20
+
+		local popIn = TweenService:Create(winner.medalLabel, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+			TextTransparency = 0,
+			Rotation = 8,
+		})
+		popIn:Play()
+		popIn.Completed:Connect(function()
+			-- Looping rock/pulse: tilt left then right
+			local rockLeft: () -> ()
+			local rockRight: () -> ()
+			rockLeft = function()
+				if not winner.medalLabel.Visible then return end
+				TweenService:Create(winner.medalLabel, TweenInfo.new(0.45, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+					Rotation = -10,
+				}):Play()
+				task.delay(0.45, rockRight)
+			end
+			rockRight = function()
+				if not winner.medalLabel.Visible then return end
+				TweenService:Create(winner.medalLabel, TweenInfo.new(0.45, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut), {
+					Rotation = 10,
+				}):Play()
+				task.delay(0.45, rockLeft)
+			end
+			rockLeft()
+		end)
 	end
 
 	-- Ensure everyone else is in the rest grid at the normal cell size
