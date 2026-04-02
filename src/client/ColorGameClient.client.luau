@@ -1045,7 +1045,7 @@ local function createPlayerCard(playerName: string, displayName: string, userId:
 	cardScoreLabel.Position = UDim2.new(0, 2, 0.83, 0)
 	cardScoreLabel.BackgroundTransparency = 1
 	cardScoreLabel.Text = ""
-	cardScoreLabel.TextColor3 = Color3.fromRGB(100, 220, 140)
+	cardScoreLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
 	cardScoreLabel.Font = Enum.Font.GothamBold
 	cardScoreLabel.TextScaled = true
 	cardScoreLabel.TextXAlignment = Enum.TextXAlignment.Center
@@ -1159,12 +1159,14 @@ RoundScoresEvt.OnClientEvent:Connect(function(allScores: { { name: string, score
 		entry.scoreLabel.Text = string.format("%.2f / 10", data.score)
 		entry.timeLabel.Text = string.format("%.1fs", data.time)
 
-		if data.score >= 7 then
-			entry.scoreLabel.TextColor3 = Color3.fromRGB(100, 220, 140)
-		elseif data.score >= 4 then
+		if data.score >= 9 then
+			entry.scoreLabel.TextColor3 = Color3.fromRGB(100, 255, 140)
+		elseif data.score >= 7 then
+			entry.scoreLabel.TextColor3 = Color3.fromRGB(80, 200, 255)
+		elseif data.score >= 5 then
 			entry.scoreLabel.TextColor3 = Color3.fromRGB(255, 210, 50)
 		else
-			entry.scoreLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
+			entry.scoreLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
 		end
 
 		entry.timeLabel.TextColor3 = medalColors[timeRank[data.name]]
