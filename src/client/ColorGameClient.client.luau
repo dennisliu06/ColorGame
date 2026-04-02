@@ -18,9 +18,10 @@ local RoundResult     = Events:WaitForChild("RoundResult") :: RemoteEvent
 local PlayerElim      = Events:WaitForChild("PlayerEliminated") :: RemoteEvent
 local GameOverEvt     = Events:WaitForChild("GameOver") :: RemoteEvent
 local LobbyTimerEvt   = Events:WaitForChild("LobbyTimer") :: RemoteEvent
+local DebugElimEvt    = Events:WaitForChild("DebugEliminate") :: RemoteEvent
 
 --------------------------------------------------------------
--- BUILD THE ENTIRE GUI FROM CODE (no Studio GUI needed)
+-- SCREEN GUI
 --------------------------------------------------------------
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "ColorGameGui"
@@ -28,168 +29,281 @@ screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = playerGui
 
--- Main card background
+--------------------------------------------------------------
+-- CARD
+--------------------------------------------------------------
+local CARD_W, CARD_H = 580, 450
+local CARD_REST  = UDim2.new(0.5, -CARD_W / 2, 0.5, -CARD_H / 2)
+local CARD_ENTER = UDim2.new(0.5, -CARD_W / 2, 0.62, -CARD_H / 2)
+
 local card = Instance.new("Frame")
 card.Name = "Card"
-card.Size = UDim2.new(0, 500, 0, 380)
-card.Position = UDim2.new(0.5, -250, 0.5, -190)
-card.BackgroundColor3 = Color3.fromRGB(160, 60, 200)
+card.Size = UDim2.new(0, CARD_W, 0, CARD_H)
+card.Position = CARD_REST
+card.BackgroundColor3 = Color3.fromRGB(10, 10, 16)
+card.BackgroundTransparency = 0.1
 card.BorderSizePixel = 0
 card.Visible = false
 card.Parent = screenGui
+Instance.new("UICorner", card).CornerRadius = UDim.new(0, 24)
 
-local cardCorner = Instance.new("UICorner")
-cardCorner.CornerRadius = UDim.new(0, 20)
-cardCorner.Parent = card
+-- Subtle top-to-bottom gradient on the card body
+local cardGradient = Instance.new("UIGradient")
+cardGradient.Rotation = 90
+cardGradient.Color = ColorSequence.new({
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(28, 28, 44)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(8, 8, 14)),
+})
+cardGradient.Parent = card
 
 local cardStroke = Instance.new("UIStroke")
-cardStroke.Color = Color3.fromRGB(130, 40, 170)
-cardStroke.Thickness = 3
+cardStroke.Color = Color3.fromRGB(90, 90, 120)
+cardStroke.Thickness = 2
 cardStroke.Parent = card
 
--- Round label (top left)
+local function showCard()
+	card.Position = CARD_ENTER
+	card.Visible = true
+	TweenService:Create(card, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Position = CARD_REST,
+	}):Play()
+end
+
+local function hideCard()
+	TweenService:Create(card, TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.In), {
+		Position = CARD_ENTER,
+	}):Play()
+	task.delay(0.22, function()
+		card.Visible = false
+		card.BackgroundColor3 = Color3.fromRGB(10, 10, 16)
+	end)
+end
+
+--------------------------------------------------------------
+-- TOP ROW
+--------------------------------------------------------------
+-- Round badge (top-left)
 local roundLabel = Instance.new("TextLabel")
 roundLabel.Name = "RoundLabel"
-roundLabel.Size = UDim2.new(0, 60, 0, 30)
-roundLabel.Position = UDim2.new(0, 20, 0, 15)
-roundLabel.BackgroundColor3 = Color3.fromRGB(140, 50, 180)
-roundLabel.Text = "1/10"
-roundLabel.TextColor3 = Color3.new(1, 1, 1)
-roundLabel.TextSize = 16
+roundLabel.Size = UDim2.new(0, 120, 0, 34)
+roundLabel.Position = UDim2.new(0, 16, 0, 16)
+roundLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 50)
+roundLabel.Text = "ROUND 1/10"
+roundLabel.TextColor3 = Color3.fromRGB(180, 180, 215)
+roundLabel.TextSize = 15
 roundLabel.Font = Enum.Font.GothamBold
 roundLabel.BorderSizePixel = 0
 roundLabel.Parent = card
-Instance.new("UICorner", roundLabel).CornerRadius = UDim.new(0, 12)
+Instance.new("UICorner", roundLabel).CornerRadius = UDim.new(0, 10)
 
--- Instruction label
+-- Instruction (center, big)
 local instructionLabel = Instance.new("TextLabel")
 instructionLabel.Name = "Instruction"
-instructionLabel.Size = UDim2.new(0, 350, 0, 40)
-instructionLabel.Position = UDim2.new(0, 120, 0, 50)
+instructionLabel.Size = UDim2.new(0, 340, 0, 50)
+instructionLabel.Position = UDim2.new(0.5, -170, 0, 8)
 instructionLabel.BackgroundTransparency = 1
-instructionLabel.Text = "Memorize this color!"
+instructionLabel.Text = "MEMORIZE THE COLOR!"
 instructionLabel.TextColor3 = Color3.new(1, 1, 1)
-instructionLabel.TextSize = 20
-instructionLabel.Font = Enum.Font.GothamMedium
-instructionLabel.TextXAlignment = Enum.TextXAlignment.Left
+instructionLabel.TextSize = 28
+instructionLabel.Font = Enum.Font.GothamBold
+instructionLabel.TextXAlignment = Enum.TextXAlignment.Center
 instructionLabel.TextWrapped = true
 instructionLabel.Parent = card
 
--- Timer label (big number)
+-- Timer (top-right, huge)
 local timerLabel = Instance.new("TextLabel")
 timerLabel.Name = "Timer"
-timerLabel.Size = UDim2.new(0, 80, 0, 60)
-timerLabel.Position = UDim2.new(1, -90, 0, 10)
+timerLabel.Size = UDim2.new(0, 90, 0, 72)
+timerLabel.Position = UDim2.new(1, -100, 0, -4)
 timerLabel.BackgroundTransparency = 1
 timerLabel.Text = ""
 timerLabel.TextColor3 = Color3.new(1, 1, 1)
-timerLabel.TextSize = 48
+timerLabel.TextSize = 72
 timerLabel.Font = Enum.Font.GothamBold
 timerLabel.Parent = card
 
--- Target color display (big square)
+local function pulseTimer(t: number)
+	timerLabel.Text = tostring(t)
+	if t <= 2 then
+		timerLabel.TextColor3 = Color3.fromRGB(255, 65, 65)
+	elseif t <= 4 then
+		timerLabel.TextColor3 = Color3.fromRGB(255, 210, 50)
+	else
+		timerLabel.TextColor3 = Color3.new(1, 1, 1)
+	end
+	timerLabel.TextSize = 96
+	TweenService:Create(timerLabel, TweenInfo.new(0.18, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+		TextSize = 72,
+	}):Play()
+end
+
+--------------------------------------------------------------
+-- COLOR DISPLAYS
+--------------------------------------------------------------
+-- Target color (visible during memorize phase and result)
 local colorDisplay = Instance.new("Frame")
 colorDisplay.Name = "ColorDisplay"
-colorDisplay.Size = UDim2.new(0, 160, 0, 160)
-colorDisplay.Position = UDim2.new(0, 170, 0, 110)
+colorDisplay.Size = UDim2.new(0, 210, 0, 210)
+colorDisplay.Position = UDim2.new(0.5, -105, 0, 88) -- centered during memorize
 colorDisplay.BackgroundColor3 = Color3.new(1, 1, 1)
 colorDisplay.BorderSizePixel = 0
 colorDisplay.Visible = false
 colorDisplay.Parent = card
-Instance.new("UICorner", colorDisplay).CornerRadius = UDim.new(0, 16)
+Instance.new("UICorner", colorDisplay).CornerRadius = UDim.new(0, 20)
+local colorDisplayStroke = Instance.new("UIStroke")
+colorDisplayStroke.Color = Color3.fromRGB(255, 255, 255)
+colorDisplayStroke.Thickness = 3
+colorDisplayStroke.Transparency = 0.55
+colorDisplayStroke.Parent = colorDisplay
 
--- Player guess color display (smaller square)
+local targetSubLabel = Instance.new("TextLabel")
+targetSubLabel.Size = UDim2.new(1, 0, 0, 24)
+targetSubLabel.Position = UDim2.new(0, 0, 1, 10)
+targetSubLabel.BackgroundTransparency = 1
+targetSubLabel.Text = "TARGET"
+targetSubLabel.TextColor3 = Color3.fromRGB(160, 160, 190)
+targetSubLabel.TextSize = 15
+targetSubLabel.Font = Enum.Font.GothamBold
+targetSubLabel.TextXAlignment = Enum.TextXAlignment.Center
+targetSubLabel.Parent = colorDisplay
+
+-- Player guess preview (visible during guess phase and result)
 local playerColorDisplay = Instance.new("Frame")
 playerColorDisplay.Name = "PlayerColor"
-playerColorDisplay.Size = UDim2.new(0, 100, 0, 100)
-playerColorDisplay.Position = UDim2.new(0, 360, 0, 140)
+playerColorDisplay.Size = UDim2.new(0, 200, 0, 200)
+playerColorDisplay.Position = UDim2.new(0, 350, 0, 93)
 playerColorDisplay.BackgroundColor3 = Color3.fromHSV(0.5, 0.5, 0.5)
 playerColorDisplay.BorderSizePixel = 0
 playerColorDisplay.Visible = false
 playerColorDisplay.Parent = card
-Instance.new("UICorner", playerColorDisplay).CornerRadius = UDim.new(0, 12)
+Instance.new("UICorner", playerColorDisplay).CornerRadius = UDim.new(0, 20)
+local playerColorStroke = Instance.new("UIStroke")
+playerColorStroke.Color = Color3.fromRGB(255, 255, 255)
+playerColorStroke.Thickness = 3
+playerColorStroke.Transparency = 0.55
+playerColorStroke.Parent = playerColorDisplay
 
--- Score label
+local yourGuessSubLabel = Instance.new("TextLabel")
+yourGuessSubLabel.Size = UDim2.new(1, 0, 0, 24)
+yourGuessSubLabel.Position = UDim2.new(0, 0, 1, 10)
+yourGuessSubLabel.BackgroundTransparency = 1
+yourGuessSubLabel.Text = "YOUR GUESS"
+yourGuessSubLabel.TextColor3 = Color3.fromRGB(160, 160, 190)
+yourGuessSubLabel.TextSize = 15
+yourGuessSubLabel.Font = Enum.Font.GothamBold
+yourGuessSubLabel.TextXAlignment = Enum.TextXAlignment.Center
+yourGuessSubLabel.Parent = playerColorDisplay
+
+--------------------------------------------------------------
+-- SCORE + RATING
+--------------------------------------------------------------
 local scoreLabel = Instance.new("TextLabel")
 scoreLabel.Name = "Score"
-scoreLabel.Size = UDim2.new(0, 200, 0, 40)
-scoreLabel.Position = UDim2.new(0, 170, 0, 290)
+scoreLabel.Size = UDim2.new(0, 360, 0, 62)
+scoreLabel.Position = UDim2.new(0.5, -180, 1, -80)
 scoreLabel.BackgroundTransparency = 1
 scoreLabel.Text = ""
 scoreLabel.TextColor3 = Color3.new(1, 1, 1)
-scoreLabel.TextSize = 28
+scoreLabel.TextSize = 52
 scoreLabel.Font = Enum.Font.GothamBold
+scoreLabel.TextXAlignment = Enum.TextXAlignment.Center
 scoreLabel.Parent = card
 
--- Submit button
+local ratingLabel = Instance.new("TextLabel")
+ratingLabel.Name = "Rating"
+ratingLabel.Size = UDim2.new(0, 360, 0, 30)
+ratingLabel.Position = UDim2.new(0.5, -180, 1, -26)
+ratingLabel.BackgroundTransparency = 1
+ratingLabel.Text = ""
+ratingLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+ratingLabel.TextSize = 22
+ratingLabel.Font = Enum.Font.GothamMedium
+ratingLabel.TextXAlignment = Enum.TextXAlignment.Center
+ratingLabel.Parent = card
+
+--------------------------------------------------------------
+-- SUBMIT BUTTON
+--------------------------------------------------------------
 local submitButton = Instance.new("TextButton")
 submitButton.Name = "SubmitBtn"
-submitButton.Size = UDim2.new(0, 80, 0, 36)
-submitButton.Position = UDim2.new(1, -100, 1, -50)
-submitButton.BackgroundColor3 = Color3.fromRGB(245, 240, 235)
-submitButton.Text = "OK"
-submitButton.TextColor3 = Color3.fromRGB(30, 30, 30)
-submitButton.TextSize = 18
+submitButton.Size = UDim2.new(0, 180, 0, 52)
+submitButton.Position = UDim2.new(0.5, -90, 1, -66)
+submitButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+submitButton.Text = "SUBMIT"
+submitButton.TextColor3 = Color3.fromRGB(10, 10, 16)
+submitButton.TextSize = 22
 submitButton.Font = Enum.Font.GothamBold
 submitButton.BorderSizePixel = 0
 submitButton.Visible = false
 submitButton.Parent = card
-Instance.new("UICorner", submitButton).CornerRadius = UDim.new(0, 18)
+Instance.new("UICorner", submitButton).CornerRadius = UDim.new(0, 26)
+
+submitButton.MouseEnter:Connect(function()
+	TweenService:Create(submitButton, TweenInfo.new(0.12), {
+		BackgroundColor3 = Color3.fromRGB(215, 215, 215),
+	}):Play()
+end)
+submitButton.MouseLeave:Connect(function()
+	TweenService:Create(submitButton, TweenInfo.new(0.12), {
+		BackgroundColor3 = Color3.fromRGB(255, 255, 255),
+	}):Play()
+end)
 
 --------------------------------------------------------------
--- BUILD SLIDERS (Hue, Sat, Brightness)
+-- SLIDERS (Hue, Sat, Brightness)
 --------------------------------------------------------------
 local sliderValues = { hue = 0.5, sat = 0.5, bri = 0.5 }
 local sliderFrames: { [string]: { frame: Frame, track: Frame, knob: TextButton } } = {}
 
 local sliderDefs = {
-	{ key = "hue", x = 20,  label = "H" },
-	{ key = "sat", x = 55,  label = "S" },
-	{ key = "bri", x = 90,  label = "B" },
+	{ key = "hue", x = 22,  label = "HUE" },
+	{ key = "sat", x = 106, label = "SAT" },
+	{ key = "bri", x = 190, label = "BRI" },
 }
 
 for _, def in ipairs(sliderDefs) do
 	local frame = Instance.new("Frame")
 	frame.Name = def.key .. "Slider"
-	frame.Size = UDim2.new(0, 24, 0, 240)
-	frame.Position = UDim2.new(0, def.x, 0, 100)
+	frame.Size = UDim2.new(0, 60, 0, 250)
+	frame.Position = UDim2.new(0, def.x, 0, 95)
 	frame.BackgroundTransparency = 1
 	frame.Visible = false
 	frame.Parent = card
 
-	-- Label above slider
+	-- Label above
 	local label = Instance.new("TextLabel")
-	label.Size = UDim2.new(1, 0, 0, 16)
-	label.Position = UDim2.new(0, 0, 0, -18)
+	label.Size = UDim2.new(2, 0, 0, 26)
+	label.Position = UDim2.new(-0.5, 0, 0, -30)
 	label.BackgroundTransparency = 1
 	label.Text = def.label
-	label.TextColor3 = Color3.new(1, 1, 1)
-	label.TextSize = 12
+	label.TextColor3 = Color3.fromRGB(200, 200, 230)
+	label.TextSize = 18
 	label.Font = Enum.Font.GothamBold
+	label.TextXAlignment = Enum.TextXAlignment.Center
 	label.Parent = frame
 
 	local track = Instance.new("Frame")
 	track.Name = "Track"
 	track.Size = UDim2.new(1, 0, 1, 0)
-	track.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+	track.BackgroundColor3 = Color3.new(1, 1, 1)
 	track.BorderSizePixel = 0
 	track.Parent = frame
-	Instance.new("UICorner", track).CornerRadius = UDim.new(0, 12)
+	Instance.new("UICorner", track).CornerRadius = UDim.new(0.5, 0)
 
 	local knob = Instance.new("TextButton")
 	knob.Name = "Knob"
-	knob.Size = UDim2.new(0, 32, 0, 14)
-	knob.Position = UDim2.new(0.5, -16, 0.5, -7)
+	knob.Size = UDim2.new(0, 70, 0, 22)
+	knob.Position = UDim2.new(0.5, -35, 0.5, -11)
 	knob.BackgroundColor3 = Color3.new(1, 1, 1)
 	knob.Text = ""
 	knob.BorderSizePixel = 0
 	knob.ZIndex = 5
 	knob.Parent = frame
-	Instance.new("UICorner", knob).CornerRadius = UDim.new(0, 7)
+	Instance.new("UICorner", knob).CornerRadius = UDim.new(0, 11)
 
 	local knobStroke = Instance.new("UIStroke")
-	knobStroke.Color = Color3.fromRGB(180, 180, 180)
-	knobStroke.Thickness = 1
+	knobStroke.Color = Color3.fromRGB(190, 190, 205)
+	knobStroke.Thickness = 2
 	knobStroke.Parent = knob
 
 	sliderFrames[def.key] = { frame = frame, track = track, knob = knob }
@@ -221,7 +335,6 @@ end
 local function updateSatBriGradients()
 	local h = sliderValues.hue
 
-	-- Saturation: white → full color
 	local satTrack = sliderFrames.sat.track
 	clearGradients(satTrack)
 	local sg = Instance.new("UIGradient")
@@ -232,7 +345,6 @@ local function updateSatBriGradients()
 	})
 	sg.Parent = satTrack
 
-	-- Brightness: black → full color
 	local briTrack = sliderFrames.bri.track
 	clearGradients(briTrack)
 	local bg = Instance.new("UIGradient")
@@ -245,7 +357,7 @@ local function updateSatBriGradients()
 end
 
 --------------------------------------------------------------
--- UPDATE PLAYER COLOR PREVIEW
+-- COLOR PREVIEW
 --------------------------------------------------------------
 local function updatePlayerColor()
 	playerColorDisplay.BackgroundColor3 = Color3.fromHSV(
@@ -269,7 +381,7 @@ local function setupSliderDrag(key: string, onChanged: () -> ())
 		local tSize = track.AbsoluteSize.Y
 		local rel = math.clamp((inputY - tPos) / tSize, 0, 1)
 		sliderValues[key] = rel
-		knob.Position = UDim2.new(0.5, -16, rel, -7)
+		knob.Position = UDim2.new(0.5, -35, rel, -11)
 		onChanged()
 	end
 
@@ -330,7 +442,6 @@ local function setSlidersVisible(visible: boolean)
 		data.frame.Visible = visible
 	end
 	submitButton.Visible = visible
-	playerColorDisplay.Visible = visible
 end
 
 local function resetSliders()
@@ -338,7 +449,7 @@ local function resetSliders()
 	sliderValues.sat = 0.5
 	sliderValues.bri = 0.5
 	for _, data in pairs(sliderFrames) do
-		data.knob.Position = UDim2.new(0.5, -16, 0.5, -7)
+		data.knob.Position = UDim2.new(0.5, -35, 0.5, -11)
 	end
 	updatePlayerColor()
 	updateSatBriGradients()
@@ -353,30 +464,40 @@ submitButton.MouseButton1Click:Connect(function()
 	if hasSubmitted then return end
 	hasSubmitted = true
 	SubmitGuessEvt:FireServer(sliderValues.hue, sliderValues.sat, sliderValues.bri)
-	submitButton.Text = "Sent!"
-	submitButton.BackgroundColor3 = Color3.fromRGB(100, 220, 100)
+	submitButton.Text = "SENT ✓"
+	TweenService:Create(submitButton, TweenInfo.new(0.2), {
+		BackgroundColor3 = Color3.fromRGB(80, 220, 120),
+	}):Play()
+	submitButton.TextColor3 = Color3.new(1, 1, 1)
 end)
 
 --------------------------------------------------------------
 -- EVENT: Show Color (memorize phase)
 --------------------------------------------------------------
 ShowColor.OnClientEvent:Connect(function(h: number, s: number, v: number, roundNum: number, maxRounds: number)
-	card.Visible = true
+	showCard()
 	hasSubmitted = false
-	submitButton.Text = "OK"
-	submitButton.BackgroundColor3 = Color3.fromRGB(245, 240, 235)
+	submitButton.Text = "SUBMIT"
+	submitButton.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+	submitButton.TextColor3 = Color3.fromRGB(10, 10, 16)
 
-	roundLabel.Text = roundNum .. "/" .. maxRounds
+	roundLabel.Text = "ROUND " .. roundNum .. "/" .. maxRounds
 	scoreLabel.Text = ""
-	instructionLabel.Text = "Memorize this color!"
+	ratingLabel.Text = ""
+	instructionLabel.Text = "MEMORIZE THE COLOR!"
+	instructionLabel.TextColor3 = Color3.new(1, 1, 1)
 
-	colorDisplay.Visible = true
+	-- Center colorDisplay for memorize phase
+	colorDisplay.Position = UDim2.new(0.5, -105, 0, 88)
+	colorDisplay.Size = UDim2.new(0, 210, 0, 210)
 	colorDisplay.BackgroundColor3 = Color3.fromHSV(h, s, v)
+	colorDisplay.Visible = true
 	setSlidersVisible(false)
+	playerColorDisplay.Visible = false
 
-	-- Client-side countdown display
+	-- Countdown with pulse
 	for t = 5, 1, -1 do
-		timerLabel.Text = tostring(t)
+		pulseTimer(t)
 		task.wait(1)
 	end
 	timerLabel.Text = ""
@@ -387,19 +508,24 @@ end)
 -- EVENT: Start Guessing
 --------------------------------------------------------------
 StartGuessing.OnClientEvent:Connect(function(guessTime: number)
-	instructionLabel.Text = "Recreate the color!"
+	instructionLabel.Text = "RECREATE THE COLOR!"
+	instructionLabel.TextColor3 = Color3.fromRGB(255, 240, 100)
+
+	-- Position playerColorDisplay on the right during guess phase
+	playerColorDisplay.Size = UDim2.new(0, 200, 0, 200)
+	playerColorDisplay.Position = UDim2.new(0, 348, 0, 93)
+	playerColorDisplay.Visible = true
+
 	setSlidersVisible(true)
 	resetSliders()
 
-	-- Guess countdown
 	for t = guessTime, 1, -1 do
-		timerLabel.Text = tostring(t)
+		pulseTimer(t)
 		task.wait(1)
 		if hasSubmitted then break end
 	end
 	timerLabel.Text = ""
 
-	-- Auto-submit if they didn't press OK
 	if not hasSubmitted then
 		hasSubmitted = true
 		SubmitGuessEvt:FireServer(sliderValues.hue, sliderValues.sat, sliderValues.bri)
@@ -412,81 +538,144 @@ end)
 RoundResult.OnClientEvent:Connect(function(score: number, tH: number, tS: number, tV: number)
 	setSlidersVisible(false)
 
-	-- Show both colors for comparison
-	colorDisplay.Visible = true
+	-- Side-by-side comparison
+	colorDisplay.Size = UDim2.new(0, 200, 0, 200)
+	colorDisplay.Position = UDim2.new(0, 40, 0, 93)
 	colorDisplay.BackgroundColor3 = Color3.fromHSV(tH, tS, tV)
+	colorDisplay.Visible = true
+
+	playerColorDisplay.Size = UDim2.new(0, 200, 0, 200)
+	playerColorDisplay.Position = UDim2.new(0, 270, 0, 93)
 	playerColorDisplay.Visible = true
 
-	instructionLabel.Text = "Your guess vs the original"
-	scoreLabel.Text = "Score: " .. score .. "/10"
+	instructionLabel.Text = "YOUR GUESS vs TARGET"
+	instructionLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
 
-	if score >= 8 then
-		scoreLabel.TextColor3 = Color3.fromRGB(50, 255, 50)
+	-- Score reveal animation
+	local scoreText = score .. " / 10"
+	local rating, ratingColor: Color3
+	if score >= 9 then
+		rating = "PERFECT ✨"
+		ratingColor = Color3.fromRGB(100, 255, 140)
+		scoreLabel.TextColor3 = Color3.fromRGB(100, 255, 140)
+	elseif score >= 7 then
+		rating = "GREAT! 🎯"
+		ratingColor = Color3.fromRGB(80, 200, 255)
+		scoreLabel.TextColor3 = Color3.fromRGB(80, 200, 255)
 	elseif score >= 5 then
-		scoreLabel.TextColor3 = Color3.fromRGB(255, 255, 50)
+		rating = "SO CLOSE"
+		ratingColor = Color3.fromRGB(255, 210, 50)
+		scoreLabel.TextColor3 = Color3.fromRGB(255, 210, 50)
 	else
+		rating = "MISSED 😬"
+		ratingColor = Color3.fromRGB(255, 80, 80)
 		scoreLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
 	end
 
-	task.wait(3)
-	card.Visible = false
+	scoreLabel.TextSize = 24
+	scoreLabel.Text = scoreText
+	ratingLabel.Text = rating
+	ratingLabel.TextColor3 = ratingColor
+	TweenService:Create(scoreLabel, TweenInfo.new(0.4, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		TextSize = 52,
+	}):Play()
+
+	task.wait(3.5)
+	hideCard()
 end)
 
 --------------------------------------------------------------
 -- EVENT: Player Eliminated
 --------------------------------------------------------------
 PlayerElim.OnClientEvent:Connect(function(eliminatedName: string)
-	if eliminatedName then
-		card.Visible = true
-		setSlidersVisible(false)
-		colorDisplay.Visible = false
-		playerColorDisplay.Visible = false
-		scoreLabel.Text = ""
-		instructionLabel.Text = "💀 " .. eliminatedName .. " was eliminated!"
+	if not eliminatedName then return end
 
-		if eliminatedName == player.DisplayName then
-			instructionLabel.Text = "💀 You were eliminated!"
-			card.BackgroundColor3 = Color3.fromRGB(80, 30, 30)
-		end
+	showCard()
+	setSlidersVisible(false)
+	colorDisplay.Visible = false
+	playerColorDisplay.Visible = false
+	scoreLabel.Text = ""
+	ratingLabel.Text = ""
 
-		task.wait(2.5)
-		card.Visible = false
-		card.BackgroundColor3 = Color3.fromRGB(160, 60, 200) -- reset color
+	if eliminatedName == player.DisplayName then
+		card.BackgroundColor3 = Color3.fromRGB(55, 10, 10)
+		instructionLabel.Text = "💀 YOU WERE ELIMINATED"
+		instructionLabel.TextColor3 = Color3.fromRGB(255, 80, 80)
+		timerLabel.Text = ""
+	else
+		instructionLabel.Text = "💀 " .. eliminatedName:upper() .. " ELIMINATED"
+		instructionLabel.TextColor3 = Color3.fromRGB(255, 160, 60)
+		timerLabel.Text = ""
 	end
+
+	task.wait(2.5)
+	hideCard()
 end)
 
 --------------------------------------------------------------
 -- EVENT: Game Over
 --------------------------------------------------------------
 GameOverEvt.OnClientEvent:Connect(function(winnerName: string)
-	card.Visible = true
+	showCard()
 	setSlidersVisible(false)
 	colorDisplay.Visible = false
 	playerColorDisplay.Visible = false
-
-	card.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
-	instructionLabel.Text = "GAME OVER"
-	scoreLabel.Text = "🏆 " .. winnerName .. " WINS!"
-	scoreLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
 	timerLabel.Text = ""
+
+	instructionLabel.Text = "GAME OVER"
+	instructionLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+
+	scoreLabel.TextSize = 36
+	scoreLabel.Text = "🏆 " .. winnerName:upper()
+	scoreLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
+	TweenService:Create(scoreLabel, TweenInfo.new(0.5, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		TextSize = 52,
+	}):Play()
+
+	ratingLabel.Text = "WINS THE ROUND!"
+	ratingLabel.TextColor3 = Color3.fromRGB(255, 215, 0)
 end)
 
 --------------------------------------------------------------
 -- EVENT: Lobby Timer
 --------------------------------------------------------------
 LobbyTimerEvt.OnClientEvent:Connect(function(t: number)
-	card.Visible = true
-	card.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+	if not card.Visible then
+		showCard()
+	end
 	setSlidersVisible(false)
 	colorDisplay.Visible = false
 	playerColorDisplay.Visible = false
 	scoreLabel.Text = ""
-	instructionLabel.Text = "Game starting in " .. t .. "..."
-	timerLabel.Text = tostring(t)
+	ratingLabel.Text = ""
+	instructionLabel.Text = "GAME STARTING SOON"
+	instructionLabel.TextColor3 = Color3.fromRGB(180, 180, 220)
+	pulseTimer(t)
 
 	if t <= 1 then
 		task.wait(1.5)
-		card.BackgroundColor3 = Color3.fromRGB(160, 60, 200)
-		card.Visible = false
+		hideCard()
 	end
+end)
+
+--------------------------------------------------------------
+-- DEBUG: Self-Eliminate Button (testing only)
+--------------------------------------------------------------
+local debugBtn = Instance.new("TextButton")
+debugBtn.Name = "DebugElimBtn"
+debugBtn.Size = UDim2.new(0, 150, 0, 34)
+debugBtn.Position = UDim2.new(1, -160, 0, 10)
+debugBtn.BackgroundColor3 = Color3.fromRGB(180, 30, 30)
+debugBtn.BackgroundTransparency = 0.15
+debugBtn.Text = "☠ Eliminate Me"
+debugBtn.TextColor3 = Color3.new(1, 1, 1)
+debugBtn.TextSize = 15
+debugBtn.Font = Enum.Font.GothamBold
+debugBtn.BorderSizePixel = 0
+debugBtn.ZIndex = 10
+debugBtn.Parent = screenGui
+Instance.new("UICorner", debugBtn).CornerRadius = UDim.new(0, 8)
+
+debugBtn.MouseButton1Click:Connect(function()
+	DebugElimEvt:FireServer()
 end)
