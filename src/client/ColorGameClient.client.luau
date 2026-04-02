@@ -511,6 +511,75 @@ local function resetSliders()
 end
 
 --------------------------------------------------------------
+-- SUBMITTED COLOR PANEL (shown after submit while waiting for results)
+--------------------------------------------------------------
+local submittedPanel = Instance.new("Frame")
+submittedPanel.Name = "SubmittedPanel"
+submittedPanel.Size = UDim2.new(0, 390, 0, 90)
+submittedPanel.Position = UDim2.new(0.5, -195, 1, -96)
+submittedPanel.BackgroundColor3 = Color3.fromRGB(18, 18, 30)
+submittedPanel.BackgroundTransparency = 0.08
+submittedPanel.BorderSizePixel = 0
+submittedPanel.Visible = false
+submittedPanel.Parent = screenGui
+Instance.new("UICorner", submittedPanel).CornerRadius = UDim.new(0, 18)
+local submittedStroke = Instance.new("UIStroke")
+submittedStroke.Color = Color3.fromRGB(90, 90, 120)
+submittedStroke.Thickness = 1.5
+submittedStroke.Parent = submittedPanel
+
+local yourColorLabel = Instance.new("TextLabel")
+yourColorLabel.Size = UDim2.new(0, 130, 1, 0)
+yourColorLabel.Position = UDim2.new(0, 18, 0, 0)
+yourColorLabel.BackgroundTransparency = 1
+yourColorLabel.Text = "YOUR COLOR:"
+yourColorLabel.TextColor3 = Color3.fromRGB(160, 160, 200)
+yourColorLabel.TextSize = 15
+yourColorLabel.Font = Enum.Font.GothamBold
+yourColorLabel.TextXAlignment = Enum.TextXAlignment.Left
+yourColorLabel.TextYAlignment = Enum.TextYAlignment.Center
+yourColorLabel.Parent = submittedPanel
+
+local submittedSwatch = Instance.new("Frame")
+submittedSwatch.Name = "Swatch"
+submittedSwatch.Size = UDim2.new(0, 200, 0, 54)
+submittedSwatch.Position = UDim2.new(1, -218, 0.5, -27)
+submittedSwatch.BackgroundColor3 = Color3.fromRGB(128, 128, 128)
+submittedSwatch.BorderSizePixel = 0
+submittedSwatch.Parent = submittedPanel
+Instance.new("UICorner", submittedSwatch).CornerRadius = UDim.new(0, 12)
+local swatchStroke = Instance.new("UIStroke")
+swatchStroke.Color = Color3.fromRGB(200, 200, 230)
+swatchStroke.Thickness = 2
+swatchStroke.Transparency = 0.45
+swatchStroke.Parent = submittedSwatch
+
+local waitingLabel = Instance.new("TextLabel")
+waitingLabel.Size = UDim2.new(1, -160, 0, 20)
+waitingLabel.Position = UDim2.new(0, 18, 1, -24)
+waitingLabel.BackgroundTransparency = 1
+waitingLabel.Text = "Waiting for results..."
+waitingLabel.TextColor3 = Color3.fromRGB(100, 100, 130)
+waitingLabel.TextSize = 13
+waitingLabel.Font = Enum.Font.Gotham
+waitingLabel.TextXAlignment = Enum.TextXAlignment.Left
+waitingLabel.Parent = submittedPanel
+
+local function showSubmittedPanel()
+	submittedSwatch.BackgroundColor3 = Color3.fromHSV(
+		sliderValues.hue % 1,
+		math.clamp(sliderValues.sat, 0, 1),
+		math.clamp(sliderValues.bri, 0, 1)
+	)
+	-- Slide up from off-screen bottom
+	submittedPanel.Position = UDim2.new(0.5, -195, 1, 20)
+	submittedPanel.Visible = true
+	TweenService:Create(submittedPanel, TweenInfo.new(0.35, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {
+		Position = UDim2.new(0.5, -195, 1, -110),
+	}):Play()
+end
+
+--------------------------------------------------------------
 -- SUBMIT
 --------------------------------------------------------------
 local hasSubmitted = false
@@ -522,11 +591,10 @@ submitButton.MouseButton1Click:Connect(function()
 	if hasSubmitted then return end
 	hasSubmitted = true
 	SubmitGuessEvt:FireServer(sliderValues.hue, sliderValues.sat, sliderValues.bri)
-	submitButton.Text = "SENT ✓"
-	TweenService:Create(submitButton, TweenInfo.new(0.2), {
-		BackgroundColor3 = Color3.fromRGB(80, 220, 120),
-	}):Play()
-	submitButton.TextColor3 = Color3.new(1, 1, 1)
+	setSlidersVisible(false)
+	playerColorDisplay.Visible = false
+	hideCard()
+	showSubmittedPanel()
 end)
 
 --------------------------------------------------------------
@@ -570,6 +638,7 @@ StartGuessing.OnClientEvent:Connect(function(guessTime: number)
 	playerColorDisplay.Size = UDim2.new(0, 200, 0, 200)
 	playerColorDisplay.Position = UDim2.new(0, 348, 0, 93)
 	playerColorDisplay.Visible = true
+	submittedPanel.Visible = false
 
 	setSlidersVisible(true)
 	resetSliders()
@@ -579,6 +648,10 @@ StartGuessing.OnClientEvent:Connect(function(guessTime: number)
 	if not hasSubmitted then
 		hasSubmitted = true
 		SubmitGuessEvt:FireServer(sliderValues.hue, sliderValues.sat, sliderValues.bri)
+		setSlidersVisible(false)
+		playerColorDisplay.Visible = false
+		hideCard()
+		showSubmittedPanel()
 	end
 end)
 
@@ -588,6 +661,7 @@ end)
 RoundResult.OnClientEvent:Connect(function(score: number, tH: number, tS: number, tV: number)
 	clearAllBillboards()
 	setSlidersVisible(false)
+	submittedPanel.Visible = false
 
 	-- Side-by-side comparison
 	colorDisplay.Size = UDim2.new(0, 200, 0, 200)
